@@ -1,0 +1,117 @@
+---
+title: "Integrations Overview: Revenue, Tokens & Alerts"
+sidebarTitle: "Integrations"
+description: "Connect MetricPanel to revenue providers, configure server-side API tokens, set up signed ingestion, and route alerts to Slack, email, or webhooks."
+---
+
+MetricPanel integrations link your website to revenue providers, enable server-side event ingestion, surface analytics to downstream consumers, and deliver operational alerts to the channels your team already monitors. The Integrations view in the dashboard gives you a live status summary of every configured surface — so you can see at a glance what is ready, what is waiting for its first event, and what needs attention.
+
+## Revenue providers
+
+Managed website connections currently support Stripe, Polar, and LemonSqueezy. Each connection moves through a well-defined set of states as you configure credentials, register webhooks, and confirm attributed revenue.
+
+| State | Meaning |
+|---|---|
+| Configured | Credentials or signing configuration have been saved |
+| Awaiting webhook | Setup exists, but no qualifying webhook has been observed |
+| Receiving revenue | Webhook traffic has produced attributed revenue |
+| Error | The last saved or received provider state needs attention |
+
+<Warning>
+**Configured does not mean verified.** Complete a provider test transaction and wait for **Receiving revenue** status before relying on attribution data in your reports or alerts.
+</Warning>
+
+Choose your revenue provider to follow the full setup guide:
+
+<CardGroup cols={2}>
+  <Card title="Stripe" icon="stripe" href="/integrations/stripe-revenue">
+    Attribute revenue from Checkout sessions, Payment Intents, and paid invoices using MetricPanel metadata and a signed webhook.
+  </Card>
+  <Card title="Polar" icon="circle-dollar-to-slot" href="/integrations/polar-revenue">
+    Pass MetricPanel metadata through Polar checkout `custom_data` and receive attribution via a signed Polar webhook.
+  </Card>
+  <Card title="LemonSqueezy" icon="lemon" href="/integrations/lemonsqueezy-revenue">
+    Attribute orders and subscriptions by embedding MetricPanel fields in `meta.custom_data` before the checkout redirect.
+  </Card>
+  <Card title="Shopify" icon="bag-shopping" href="/integrations/shopify-revenue">
+    Store attribution in cart note attributes and recover it from signed order webhooks. Not a managed dashboard connection.
+  </Card>
+</CardGroup>
+
+<Note>
+Shopify is not currently a managed provider card in the Revenue settings UI. See the [Shopify guide](/integrations/shopify-revenue) for the operator-configured webhook path.
+</Note>
+
+For custom revenue ingestion outside these providers, see [Revenue concepts and custom API](/revenue).
+
+## Website API tokens
+
+Use a website-scoped API token whenever you need to send events from a server or read analytics data from an external system. Grant each token only the scopes required by its consumer, and apply allowed-domain restrictions when requests originate from a stable, known origin.
+
+When to create a token:
+
+- **Server-side event ingestion** — send page views, custom events, or revenue records from backend code without exposing a public script.
+- **Analytics reads** — pull aggregated stats, funnels, or session data into a dashboard, data warehouse, or reporting tool.
+- **Signed ingestion** — pair the token with an HMAC secret to prove requests come from a trusted caller (see [Signed ingestion](#signed-ingestion) below).
+
+The following example fetches aggregated stats for a website using a bearer token:
+
+```bash
+curl "https://api.your-metricpanel-domain.com/api/v1/analytics/stats?websiteId=YOUR_WEBSITE_ID" \
+  -H "Authorization: Bearer mtk_..."
+```
+
+<Warning>
+Store tokens in server-side secret management — environment variables, a secrets manager, or a vault. Never embed an analytics-read or ingest token in public client-side JavaScript unless its exposure and scope are intentionally designed for that environment.
+</Warning>
+
+## Signed ingestion
+
+HMAC signing proves that a protected integration request came from a caller who holds the shared secret. It does **not** encrypt the payload. Always use HTTPS alongside signing, rotate secrets on a schedule, and reject stale or invalid signatures server-side.
+
+<Tip>
+See [HMAC signatures](/api-integration/hmac-signatures) for the full signature scheme, header format, and reference implementation.
+</Tip>
+
+## Alert delivery
+
+Website alerts can be delivered to Slack, email, or a generic webhook destination. The Integrations view summarizes configured destinations and their associated active rules. The per-website Alerts settings screen is where you create and manage individual threshold rules.
+
+<Info>
+Read [Alerts](/alerts) for channel-specific requirements, delivery format details, and instructions for testing a destination before going live.
+</Info>
+
+## Environment-backed services
+
+Some dashboard features depend on deployment-wide services that your MetricPanel operator configures at the infrastructure level. These include email delivery, OAuth providers, billing, file uploads, maps, product analytics, error monitoring, and AI providers. The Integrations view reports whether each service is configured, partially configured, or unavailable.
+
+<Note>
+Website members cannot repair missing deployment credentials from the browser. If an environment-backed service shows as unavailable and you need it, contact your MetricPanel operator.
+</Note>
+
+## Integration review checklist
+
+Before treating any integration as production-ready, confirm all of the following:
+
+<Accordion title="Security and permissions">
+- Credentials are restricted to the smallest necessary provider permissions.
+- Webhook endpoints use HTTPS and provider signatures are verified on every delivery.
+- HMAC secrets and provider secrets are not copied into client-side code.
+- API tokens have a documented owner, defined scopes, and a scheduled rotation date.
+</Accordion>
+
+<Accordion title="Revenue verification">
+- A test transaction produces exactly one attributed revenue record.
+- The connection status shows **Receiving revenue**, not just **Configured**.
+- Amount, currency, product, visitor, session, and campaign fields are all populated.
+</Accordion>
+
+<Accordion title="Alert destinations">
+- Slack, email, and webhook destinations have a monitored owner who will act on notifications.
+- Each destination has been tested with a sample delivery before enabling production rules.
+</Accordion>
+
+<Accordion title="Completeness">
+- Unsupported or planned connections are not presented to customers as active.
+- Every server-side token is stored in secret management, not in source control or client bundles.
+</Accordion>

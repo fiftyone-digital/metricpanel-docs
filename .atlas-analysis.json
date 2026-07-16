@@ -1,0 +1,133 @@
+{
+  "projectType": "saas",
+  "projectName": "MetricPanel",
+  "projectDescription": "MetricPanel is a privacy-focused web analytics platform that tracks pageviews and custom events, measures goals and funnels, and attributes revenue back to visitors and campaigns.",
+  "theme": "luma",
+  "primaryColor": "#848484",
+  "lightColor": "#1a1a1a",
+  "darkColor": "#c4c4c4",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quick-start",
+              "install-guides",
+              "switching-to-metricpanel"
+            ]
+          },
+          {
+            "group": "Tracking",
+            "pages": [
+              "tracking-script",
+              "sdk",
+              "events",
+              "first-party-domain"
+            ]
+          },
+          {
+            "group": "Analytics",
+            "pages": [
+              "goals",
+              "funnels",
+              "alerts",
+              "revenue"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "integrations",
+              "integrations/stripe-revenue",
+              "integrations/polar-revenue",
+              "integrations/lemonsqueezy-revenue",
+              "integrations/shopify-revenue"
+            ]
+          },
+          {
+            "group": "Privacy & Compliance",
+            "pages": [
+              "privacy-consent",
+              "consent-banner-examples",
+              "data-retention-portability"
+            ]
+          },
+          {
+            "group": "Account & Workspace",
+            "pages": [
+              "billing-team",
+              "authentication"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api-reference",
+              "api-integration/hmac-signatures"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Self-Hosting",
+        "groups": [
+          {
+            "group": "Operator Runbooks",
+            "pages": [
+              "self-hosting",
+              "deployment",
+              "database",
+              "troubleshooting",
+              "import-from-plausible",
+              "performance-benchmarks"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Lightweight hosted tracking script (4.4 KB gzip) with automatic pageview, SPA, and outbound-link capture",
+    "JavaScript SDK with full consent, cookieless, and Do Not Track support",
+    "Goals (event, pageview, or either) with conversion rate and value tracking",
+    "Ordered funnels across URLs, events, and goals",
+    "Revenue attribution linked to visitor, session, UTM, and product for Stripe, Polar, LemonSqueezy, and Shopify",
+    "Alerts for revenue, traffic, goal, and error metrics delivered via Slack, email, or webhook",
+    "HMAC-signed event ingestion for secure server-side tracking",
+    "Privacy controls: consent mode, cookieless tracking, IP/geo suppression, and visitor deletion",
+    "Token-scoped public analytics API with stats, top breakdowns, raw events, and CSV export",
+    "First-party domain proxying for script and ingestion traffic",
+    "Import from Plausible for historical analytics continuity",
+    "React Native SDK for mobile app tracking"
+  ],
+  "publicApiSurface": [
+    "POST /api/events — public event ingestion",
+    "POST /api/v1/revenue/events — token-scoped server-side revenue ingestion",
+    "GET /api/v1/analytics/stats — aggregate stats (visitors, pageviews, sessions, revenue)",
+    "GET /api/v1/analytics/agent-summary — AI/agent-friendly analytics summary",
+    "GET /api/v1/analytics/top — top pages, events, referrers, countries, devices",
+    "GET /api/v1/analytics/events — raw bounded event reads",
+    "GET /api/v1/analytics/visitors — bounded visitor summaries",
+    "GET /api/v1/analytics/export — CSV export by dataset",
+    "POST /api/privacy/delete-visitor — website-scoped visitor deletion",
+    "createMetricPanel({ websiteId, apiUrl, ... }) — SDK factory",
+    "metricpanel.pageview(options?) — manual pageview",
+    "metricpanel.event(name, properties?) — custom event",
+    "metricpanel.goal({ name, value, properties }) — goal event",
+    "metricpanel.revenue({ amount, currency, productId, ... }) — revenue event",
+    "metricpanel.getStripeMetadata() — attribution metadata for checkout",
+    "metricpanel.grantConsent() / revokeConsent() / hasConsent() — SDK consent API",
+    "window.metricpanel.track(name, properties?) — hosted script event API",
+    "window.metricpanel.giveConsent() — hosted script consent API",
+    "MetricPanelNativeSDK — React Native / native JS SDK"
+  ]
+}

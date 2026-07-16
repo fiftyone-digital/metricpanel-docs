@@ -1,0 +1,112 @@
+---
+title: "Data Retention and Portability Settings in MetricPanel"
+sidebarTitle: "Data Retention"
+description: "Understand MetricPanel's configurable retention windows, what the visitor deletion workflow removes, and how to handle formal access and portability requests."
+---
+
+Use this guide when a compliance review, a customer data request, or your own privacy policy requires a precise answer about how long MetricPanel keeps data, what can be deleted today, and what export options exist. Read this alongside [Privacy & Consent](/privacy-consent) for the full picture of MetricPanel's privacy controls.
+
+## Current Product Contract
+
+These are the retention and portability commitments you can rely on today:
+
+- Each website has a **configurable retention window** — the default is **90 days** until you change it.
+- **Targeted visitor deletion** is available now, both from the dashboard and via the `POST /api/privacy/delete-visitor` API endpoint.
+- Authenticated dashboard users can **export analytics data as CSV** from the main analytics tabs.
+- There is **no dedicated one-click subject-access bundle** endpoint or self-service raw visitor export flow in the current product surface — formal access requests require an operator workflow.
+
+## Retention Controls Available Today
+
+| Control | Available today | Notes |
+|---|---|---|
+| Website retention setting | ✅ Yes | Choose `30`, `90`, `180`, `365`, or `730` days when creating or editing a website. Default is `90` days. |
+| Website-scoped visitor deletion | ✅ Yes | Removes matching visitor analytics records for one website. |
+| Dashboard analytics CSV export | ✅ Yes | Export overview, top rankings, locations, devices, revenue, and live visitor journeys from the dashboard. |
+| Subject-access bundle export | ❌ No dedicated flow | Plan a manual operator response today for formal access or export requests. |
+| Workspace-wide purge workflow | ❌ No dedicated flow | Current privacy tooling is scoped to a single website and specific visitor identifiers. |
+
+<Warning>
+  Treat the retention setting as your per-website policy control. If your organization needs guaranteed automated purge behavior at a specific interval, validate that workflow in your deployment before promising specific retention timing in external privacy notices.
+</Warning>
+
+## What the Deletion Workflow Removes
+
+When a deletion request matches a visitor, MetricPanel removes all of the following records **for that website**:
+
+- Visitor records
+- Session records
+- Events
+- Revenue records
+- Goal completions
+
+<Note>
+  Deletion is **website-scoped**. A deletion request on one website does not automatically remove the same visitor's records from other websites in your workspace. Run a separate deletion request for each website where the visitor's records need to be removed.
+</Note>
+
+## Portability and Access Requests
+
+MetricPanel's current product surface is stronger on targeted deletion than on self-service export. Here's what's available today:
+
+- **Delete by visitor ID** — the most precise deletion path.
+- **Delete by email** — available as a fallback when the visitor can be resolved from stored revenue-linked customer metadata.
+- **Dashboard CSV exports** — cover operational analytics tables (overviews, rankings, devices, revenue). These are reporting exports, not raw data subject-access bundles.
+- **No dedicated portability endpoint** — the current docs do not publish a single endpoint or dashboard flow that assembles a raw visitor portability bundle.
+
+This means formal access or portability requests should be treated as an **operator workflow**, not as a one-click end-user feature you can point visitors to directly.
+
+## Recommended Operator Workflow
+
+<Steps>
+  <Step title="Confirm the correct website scope">
+    Identify which website (or websites) holds the visitor's records before taking any action. The deletion workflow is scoped to a single website at a time.
+  </Step>
+  <Step title="Obtain a concrete visitor ID when possible">
+    A direct `visitorId` is the most reliable identifier. Prefer it over email-based lookup whenever you have it.
+  </Step>
+  <Step title="Use email as a fallback for revenue-linked visitors">
+    If you don't have a `visitorId`, use the visitor's email. This only works when the visitor can be resolved from stored revenue or customer metadata — it will not match anonymous pageview-only visitors.
+  </Step>
+  <Step title="Run the deletion and record the response">
+    Use the dashboard deletion flow in **Website Settings → Privacy**, or call `POST /api/privacy/delete-visitor` directly. Save the returned deletion counts and timestamp with your support ticket or compliance record.
+
+    ```bash
+    curl -X POST https://api.your-metricpanel-domain.com/api/privacy/delete-visitor \
+      -H "Content-Type: application/json" \
+      -H "Cookie: your-auth-session" \
+      -d '{
+        "websiteId": "website_internal_id",
+        "visitorId": "vst_123",
+        "reason": "GDPR deletion request #42"
+      }'
+    ```
+  </Step>
+  <Step title="Handle access and portability requests manually">
+    For formal access or portability requests, gather any required records through the dashboard CSV exports and your own backend access. Document any limitations clearly in your response to the requester — in particular, note that dashboard exports are reporting exports and not a complete raw data subject-access bundle.
+  </Step>
+</Steps>
+
+## Known Limits
+
+Be explicit about these limitations when communicating with visitors or compliance teams:
+
+<Accordion title="Limits to communicate clearly">
+  - **Email-based deletion** does not resolve anonymous pageview-only or event-only visitors unless they can be linked through stored revenue metadata. If no revenue record links the email to a visitor, the lookup will return no results.
+  - **Dashboard CSV exports** are analytics-reporting exports, not raw visitor-level subject-access bundles. Do not describe them as a complete data portability solution in your privacy notice.
+  - **Deletion confirmation** is returned in the API response, but MetricPanel does not maintain a separate audit log you can query later. Keep the deletion response with your own ticket or case record.
+  - **Formal access responses** are still an operator workflow today — there is no customer-facing one-click export bundle to advertise.
+</Accordion>
+
+## Deployment Checklist
+
+<Accordion title="Review before going live">
+  - [ ] Choose a retention window for each website instead of leaving the 90-day default unreviewed.
+  - [ ] Decide whether your policy also requires consent-gated, cookieless, or geo-suppressed tracking (see [Privacy & Consent](/privacy-consent)).
+  - [ ] Train website owners and admins on the website-scoped deletion path before launch.
+  - [ ] Define how your team will answer portability and access requests that need more than dashboard CSV exports.
+  - [ ] Confirm your support process saves the deletion response alongside the ticket or compliance case record.
+</Accordion>
+
+## Related Guides
+
+- [Privacy & Consent](/privacy-consent) — tracker configuration, consent-mode options, and visitor deletion API reference
+- [Consent Banner Examples](/consent-banner-examples) — concrete banner implementations for HTML, React/Next.js, and CMP bridges

@@ -1,0 +1,104 @@
+---
+title: "Database and Data Layer Architecture for MetricPanel"
+sidebarTitle: "Database"
+description: "Understand how Neon Postgres, Tinybird, and Redis divide responsibility in MetricPanel and configure each store correctly for local and production environments."
+---
+
+MetricPanel v1 uses three purpose-built data stores rather than a single general-purpose database. Each store handles a distinct job, and keeping them separate is what allows the system to handle high-volume event ingestion without sacrificing transactional correctness for product and auth state.
+
+<CardGroup cols={2}>
+  <Card title="Neon Postgres" icon="elephant">
+    Durable, transactional product and auth state. The source of record for users, websites, billing, and tokens.
+  </Card>
+  <Card title="Tinybird" icon="chart-bar">
+    High-volume analytics facts and analytical query endpoints. Never read directly from browsers.
+  </Card>
+  <Card title="Redis Streams" icon="arrow-right-arrow-left">
+    The ingestion queue between the API and the worker. Guarantees at-least-once delivery of events.
+  </Card>
+  <Card title="Redis Live-State" icon="bolt">
+    Ephemeral realtime keys for active visitors, sparklines, worker heartbeat, and queue lag counters.
+  </Card>
+</CardGroup>
+
+## Neon Postgres
+
+Postgres stores everything that must be transactional, consistent, and durable across the full product lifetime. The schema lives in `packages/db`, and Drizzle migrations are checked into `packages/db/migrations`.
+
+Postgres is the system of record for:
+
+- **Auth** — Better Auth users, sessions, accounts, verification tokens, organizations, members, and invitations
+- **Websites** — website records and website memberships
+- **API security** — API token hashes and HMAC secret metadata
+- **Billing** — billing profiles, Stripe subscription references, usage counters, and billing preferences
+- **Revenue** — revenue connection state
+- **Product features** — goals, funnels, alerts, notifications, file metadata, AI usage, ad spend, and import jobs
+
+<Note>
+  If you change the Postgres schema, generate and apply Drizzle migrations before deploying any code that depends on the new schema.
+</Note>
+
+## Tinybird
+
+Tinybird stores analytics facts and serves every dashboard and API analytical query. It is optimized for high-volume columnar writes and fast aggregation queries—workloads that would be expensive on a transactional Postgres instance.
+
+Tinybird stores:
+
+- Pageviews and custom events
+- Revenue events
+- Goal completions
+- Imported aggregate rows where visitor/session identity is unavailable
+- Ingest and worker audit facts
+
+API routes call Tinybird exclusively server-side.
+
+<Warning>
+  **Tinybird tokens must never be exposed to browsers.** All Tinybird reads and writes happen from the API runtime or the worker process. Never include `TINYBIRD_TOKEN` in a client-side bundle or `NEXT_PUBLIC_` environment variable.
+</Warning>
+
+## Redis
+
+Redis is operational state, not the system of record. If Redis data is lost, the worker will rebuild live-state keys from the next batch of incoming events. Postgres and Tinybird remain the authoritative sources.
+
+### Stream and Consumer Group
+
+| Key / Name | Purpose |
+|---|---|
+| `metricpanel:events` | Primary ingestion stream — all queued ingest work |
+| `metricpanel-workers` | Consumer group that the worker registers against |
+| `metricpanel:events:dead` | Dead-letter stream for events that exhaust retries |
+
+### Live-State Keys
+
+Redis live-state keys track realtime dashboard data and operational health:
+
+- Active visitors per website
+- Active pages per website
+- Recent events per website
+- Sparkline counters
+- Worker heartbeat timestamp
+- Queue-lag counters
+
+<Note>
+  Production ingestion should return `202` only after a Redis Stream enqueue succeeds. If the enqueue fails, return `503`—do not fall back to direct Tinybird writes from the ingest path.
+</Note>
+
+## Local Setup
+
+Keep these variables in the root `.env` file for local development. Replace the placeholder values with your real credentials.
+
+```env
+DATABASE_URL="postgres://user:password@ep-example-pooler.region.aws.neon.tech/metricpanel?sslmode=require"
+BETTER_AUTH_SECRET="your-secret-key-min-32-characters"
+BETTER_AUTH_URL="http://localhost:3000"
+BETTER_AUTH_TRUSTED_ORIGINS="http://localhost:3000,http://localhost:3002"
+TINYBIRD_API_URL="https://api.tinybird.co"
+TINYBIRD_TOKEN="your-tinybird-token"
+REDIS_URL="rediss://default:your-redis-token@your-redis-host:6379"
+```
+
+## Testing Rule
+
+<Warning>
+  Automated tests must **not** run against shared MySQL/Postgres, Neon, Railway, or Tinybird. Use mocked services, in-memory state, isolated SQLite, or explicitly isolated PGLite only when the test command guarantees isolation. Connecting a test suite to a shared or production data store risks data corruption and will fail the release gate.
+</Warning>

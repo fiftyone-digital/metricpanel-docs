@@ -1,0 +1,94 @@
+---
+title: "Shopify Revenue Attribution with MetricPanel"
+sidebarTitle: "Shopify"
+description: "Attribute Shopify orders to MetricPanel visitors and campaigns by storing metadata in cart note attributes and reading it from signed order webhooks."
+---
+
+Shopify revenue attribution stores MetricPanel visitor, session, and campaign metadata as cart note attributes before the buyer reaches checkout. When Shopify delivers a signed order webhook after payment, MetricPanel reads those attributes back and links the revenue event to the originating session and campaign.
+
+<Note>
+Shopify is **not** currently a managed provider card in the MetricPanel Revenue settings UI. Use this route only after your hosted or self-managed MetricPanel operator confirms that the Shopify webhook endpoint and signing secret are configured on the API runtime.
+</Note>
+
+<Steps>
+  <Step title="Install the tracker in the theme">
+    Add the MetricPanel script tag to your shared theme `<head>` using the website ID issued for the store:
+
+    ```liquid
+    <script
+      defer
+      src="https://app.your-metricpanel-domain.com/script.js"
+      data-website-id="YOUR_WEBSITE_ID"
+      data-api-url="https://api.your-metricpanel-domain.com"
+    ></script>
+    ```
+
+    Use a literal MetricPanel website ID unless your provisioning workflow intentionally creates and maps one website per Shopify store. The tracker must initialize and create a visitor record before you attempt to read attribution metadata in Step 2.
+  </Step>
+
+  <Step title="Add metadata to the cart">
+    Before sending the buyer to checkout, copy the current attribution into Shopify cart attributes by calling `/cart/update.js`:
+
+    ```js
+    const metadata = window.metricpanel.getStripeMetadata()
+
+    await fetch('/cart/update.js', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ attributes: metadata }),
+    })
+
+    window.location.href = '/checkout'
+    ```
+
+    <Warning>
+    Run this code inside your normal add-to-cart or checkout transition handler — do not replace `window.fetch` globally. Global fetch monkey-patching can create infinite loops and interfere with unrelated storefront requests.
+    </Warning>
+
+    Shopify preserves cart attributes on the order, so these values will be present in the webhook payload MetricPanel receives after payment.
+  </Step>
+
+  <Step title="Configure signed order webhooks">
+    Register the MetricPanel API runtime endpoint in your Shopify webhook configuration:
+
+    ```text
+    https://api.your-metricpanel-domain.com/api/webhooks/shopify
+    ```
+
+    Subscribe to order creation events. Also subscribe to order update events if your payment model requires tracking post-creation state changes. The MetricPanel operator must save the matching Shopify webhook signing secret on the API runtime — without it, every delivery will fail signature verification.
+
+    <Note>
+    Revenue is recorded only for payment states accepted by the current integration. Preserve Shopify order IDs so update events and retries remain idempotent.
+    </Note>
+  </Step>
+
+  <Step title="Verify with a development store">
+    Confirm end-to-end attribution before going live:
+
+    1. Use a Shopify development store with a test payment gateway.
+    2. Start a checkout from a browser session where the MetricPanel tracker is initialized and has created a visitor record.
+    3. Before proceeding to checkout, inspect `/cart.js` and confirm the expected MetricPanel note attributes (visitor ID, session ID, website ID, UTM fields) are present.
+    4. Complete the test order and confirm Shopify reports a successful webhook delivery.
+    5. Open Revenue Analytics and verify the provider, order ID, amount, currency, and attribution fields for the transaction.
+  </Step>
+</Steps>
+
+## Common failures
+
+<Accordion title="No metadata on the order">
+Cart attributes were not updated before the checkout redirect. Confirm that the `fetch('/cart/update.js', ...)` call completes successfully — and that you `await` it — before `window.location.href = '/checkout'` executes. If the redirect fires before the fetch resolves, the attributes will not be saved on the cart.
+</Accordion>
+
+<Accordion title="Webhook rejected">
+The signing secret on the MetricPanel API runtime does not match the secret Shopify uses to sign deliveries from that webhook source. Confirm the correct secret with your MetricPanel operator and verify it is applied to the runtime, not just a local environment.
+</Accordion>
+
+<Accordion title="Order ignored">
+The order's financial status does not qualify for revenue handling in the current integration. Verify that the test order reached an accepted payment state (for example, **paid**) rather than a pending or voided state.
+</Accordion>
+
+<Accordion title="No managed connection status in dashboard">
+This is expected for Shopify. There is no dashboard connection surface for Shopify until a managed card ships. Monitor integration health through Shopify's webhook delivery logs and MetricPanel's Revenue Analytics view instead.
+</Accordion>
+
+Continue with [Revenue](/revenue) for amount handling, attribution concepts, and duplicate prevention.

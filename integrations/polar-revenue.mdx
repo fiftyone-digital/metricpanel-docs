@@ -1,0 +1,78 @@
+---
+title: "Polar Revenue Attribution with MetricPanel"
+sidebarTitle: "Polar"
+description: "Attribute Polar checkouts and subscriptions to MetricPanel visitors and campaigns by passing metadata in custom_data and verifying with a signed webhook."
+---
+
+Polar revenue attribution works by embedding MetricPanel visitor, session, website, and campaign values in the checkout's `custom_data` before the buyer pays. After Polar confirms the transaction, a signed webhook delivers those fields back to MetricPanel so the revenue event can be linked to the originating session and campaign.
+
+<Steps>
+  <Step title="Capture metadata">
+    Call `getStripeMetadata()` in the tracked browser session before you trigger the checkout redirect. The helper name reflects its original Stripe context, but the flat fields it returns can be placed directly into Polar's `custom_data`:
+
+    ```ts
+    const metricpanelMetadata = metricpanel.getStripeMetadata()
+    ```
+
+    Pass the returned object to your server in the same request that creates the Polar checkout. MetricPanel reads attribution from `custom_data` in the webhook payload, so the values must be present at checkout-creation time.
+  </Step>
+
+  <Step title="Create the Polar checkout">
+    On your server, spread the MetricPanel metadata into `customData` when you create the checkout:
+
+    ```ts
+    const checkout = await polar.checkouts.create({
+      productPriceId: 'price_123',
+      customData: metricpanelMetadata,
+      successUrl: 'https://example.com/success',
+      cancelUrl: 'https://example.com/pricing',
+    })
+    ```
+
+    <Warning>
+    Keep checkout creation on your server. The Polar access token must never be exposed to the browser.
+    </Warning>
+  </Step>
+
+  <Step title="Configure the connection and webhook">
+    Open your website's **Settings**, choose **Revenue**, and select **Polar**. Save a Polar access token scoped to only the order, subscription, and organization access the dashboard requests, along with the webhook secret for this connection.
+
+    Copy the webhook endpoint displayed by MetricPanel and register it in Polar's webhook configuration. The API runtime endpoint follows this shape:
+
+    ```text
+    https://api.your-metricpanel-domain.com/api/webhooks/polar
+    ```
+
+    Subscribe to the checkout and subscription events that match your billing model. MetricPanel records revenue for qualifying completed checkout states and active subscription states — not every intermediate event in the Polar lifecycle.
+  </Step>
+
+  <Step title="Verify in Polar test mode">
+    Confirm end-to-end attribution before going live:
+
+    1. Create a test checkout from a browser session where the MetricPanel tracker is initialized.
+    2. Inspect the checkout payload and confirm `custom_data` contains the MetricPanel website ID and the available visitor and session IDs.
+    3. Complete the checkout and confirm a signed webhook reaches the MetricPanel endpoint.
+    4. Check the connection's **last webhook** and **last revenue** timestamps in the dashboard.
+    5. Open Revenue Analytics and confirm the transaction appears exactly once with the correct amount, currency, and attribution.
+  </Step>
+</Steps>
+
+## Common failures
+
+<Accordion title="Signature error">
+The webhook secret saved in the MetricPanel connection does not match the secret configured on the Polar endpoint sending the event. Even a single character difference causes every delivery to fail signature verification. Copy the secret directly from Polar rather than retyping it.
+</Accordion>
+
+<Accordion title="No direct attribution">
+The checkout was created without MetricPanel visitor or session values in `custom_data`. Confirm that `getStripeMetadata()` ran in a tracked browser session before the checkout request was made, and that the returned fields were forwarded to the server and included in `customData`.
+</Accordion>
+
+<Accordion title="No revenue yet">
+The webhook event state is not one MetricPanel treats as completed or active. Check that you subscribed to the correct Polar events for your billing model, and that the test transaction reached a completed or active status rather than an intermediate pending state.
+</Accordion>
+
+<Accordion title="Duplicate attempt">
+Retried or replayed webhooks can create duplicate revenue records if the integration does not deduplicate by Polar's stable checkout or subscription identifier. Preserve and check the Polar object ID across retries and related events.
+</Accordion>
+
+Continue with [Revenue](/revenue) for attribution concepts and idempotency guidance.

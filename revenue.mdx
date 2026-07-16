@@ -1,0 +1,153 @@
+---
+title: "Connect Purchases to Visitors with Revenue Tracking"
+sidebarTitle: "Revenue"
+description: "Link every purchase to the visitor, session, and campaign context present at checkout — via provider webhooks, the MetricPanel SDK, or the revenue API."
+---
+
+Revenue tracking connects purchases to the MetricPanel visitor, session, campaign, and product context that was present at checkout. When you tie a transaction back to its origin — a specific UTM campaign, a referral source, or an organic search visit — you can answer which channels actually drive paying customers, not just traffic. Use a provider webhook when the payment provider is the source of truth; use the SDK or revenue API for custom billing systems.
+
+## Choose an ingestion path
+
+Pick the path that matches how your checkout is built:
+
+| Checkout model | Recommended path |
+| ------------------------------------ | ------------------------------------------------------ |
+| Stripe Checkout or subscriptions | Stripe metadata plus signed provider webhook |
+| Polar checkout or subscriptions | `custom_data` plus signed provider webhook |
+| LemonSqueezy orders or subscriptions | `meta.custom_data` plus signed provider webhook |
+| Shopify orders | Cart note attributes plus signed order webhook |
+| Custom server-side billing | `POST /api/v1/revenue/events` with a website API token |
+| Client-confirmed non-provider value | SDK `revenue()` call |
+
+<Info>
+  Provider webhooks are generally stronger than success-page events because they are signed, retryable, and tied to the provider's payment state — not the browser session that loaded your confirmation page.
+</Info>
+
+## Track with the SDK
+
+Use `metricpanel.revenue()` for client-confirmed purchases or non-provider billing flows where the browser is already authenticated and the transaction is final:
+
+```ts
+await metricpanel.revenue({
+  amount: 9900,
+  currency: 'usd',
+  productId: 'pro-annual',
+  productName: 'Pro annual',
+  metadata: {
+    interval: 'yearly',
+  },
+})
+```
+
+<Warning>
+  `amount` must be an **integer in the smallest currency unit**. For USD, `9900` means `$99.00`. Do not send payment card data or provider secrets inside `metadata`.
+</Warning>
+
+## Track through the revenue API
+
+For server-side billing systems, send revenue events directly from your backend using a website API token:
+
+```bash
+curl -X POST https://api.your-metricpanel-domain.com/api/v1/revenue/events \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer mtk_..." \
+  -d '{
+    "websiteId": "YOUR_WEBSITE_ID",
+    "transactionId": "checkout_123",
+    "provider": "custom_checkout",
+    "amount": 9900,
+    "currency": "USD",
+    "visitorId": "visitor_123",
+    "sessionId": "session_123",
+    "productName": "Pro annual"
+  }'
+```
+
+<Note>
+  The API token must include the `ingest` scope. `transactionId`, `amount`, and `currency` are required fields. MetricPanel uses `provider + transactionId` as the idempotency key — always reuse the provider's stable transaction identifier on retries to prevent duplicate records.
+</Note>
+
+## Preserve attribution through checkout
+
+When your checkout redirects visitors away from your site to a hosted payment page, read the attribution metadata **before** the redirect happens and pass it forward in the provider's metadata fields:
+
+```ts
+const attribution = metricpanel.getStripeMetadata()
+```
+
+Despite the helper name, the website, visitor, session, and campaign values returned by `getStripeMetadata()` can be placed in any provider's metadata — Stripe, Polar, LemonSqueezy, or another checkout that supports custom fields. The provider webhook must echo those values back to MetricPanel for direct session attribution to work.
+
+<Tip>
+  Capture attribution as early in the checkout flow as possible. UTM parameters and click identifiers are often stripped from the URL when a visitor navigates between pages, so reading them at the point the visitor initiates checkout is safer than waiting for the success page.
+</Tip>
+
+<Info>
+  If visitor and session identifiers are missing from the webhook payload, MetricPanel can still record the revenue event when the website and transaction are valid — but direct session attribution will be incomplete.
+</Info>
+
+## Configure a provider
+
+Connect a managed provider to automate webhook handling, signature verification, and connection health monitoring:
+
+<CardGroup cols={2}>
+  <Card title="Stripe" icon="stripe" href="/integrations/stripe-revenue">
+    Configure Stripe Checkout and subscription webhooks with automatic signature verification.
+  </Card>
+  <Card title="Polar" icon="circle-dot" href="/integrations/polar-revenue">
+    Connect Polar checkout and subscription events using `custom_data` attribution.
+  </Card>
+  <Card title="LemonSqueezy" icon="lemon" href="/integrations/lemonsqueezy-revenue">
+    Route LemonSqueezy order and subscription webhooks through `meta.custom_data`.
+  </Card>
+  <Card title="Shopify" icon="bag-shopping" href="/integrations/shopify-revenue">
+    Attach attribution to cart note attributes and receive it back on order webhooks.
+  </Card>
+</CardGroup>
+
+See the [Integrations overview](/integrations) for the full list of supported providers and connection health details.
+
+<Note>
+  A configured connection is not considered healthy revenue attribution until a signed webhook produces at least one attributed revenue event. Use the verify steps below to confirm end-to-end attribution before going live.
+</Note>
+
+## Verify revenue
+
+<Steps>
+  <Step title="Run a test-mode purchase">
+    Complete a provider test-mode purchase with MetricPanel attribution metadata attached to the checkout session. Use the provider's sandbox or test environment — do not use a real charge when a test environment is available.
+  </Step>
+  <Step title="Confirm webhook delivery">
+    In the provider's dashboard, confirm that it reports a successful, signed webhook delivery for the test transaction.
+  </Step>
+  <Step title="Check connection timestamps">
+    Open the website's **Revenue settings** in MetricPanel and check the **last webhook** and **revenue timestamps** for the managed provider connection.
+  </Step>
+  <Step title="Inspect the revenue event">
+    Open **Revenue Analytics** and confirm the event shows the correct provider, transaction ID, amount, currency, and attribution fields (visitor, session, campaign).
+  </Step>
+  <Step title="Test idempotency">
+    Replay the same provider webhook event and confirm the transaction is **not** counted twice in Revenue Analytics.
+  </Step>
+</Steps>
+
+## Troubleshooting attribution
+
+<Accordion title="Revenue is absent from the dashboard">
+  Confirm that the webhook URL in your provider is pointing to your MetricPanel endpoint, that the signature secret matches what MetricPanel expects, that you have subscribed to the correct event type (for example `checkout.session.completed` for Stripe), and that the payment actually succeeded in the provider's ledger.
+</Accordion>
+
+<Accordion title="Revenue exists but has no session attribution">
+  The revenue event was received but the webhook payload did not contain visitor and session identifiers. Confirm that your checkout code calls `metricpanel.getStripeMetadata()` before the redirect and places the returned values in the provider's metadata fields before submitting the checkout session.
+</Accordion>
+
+<Accordion title="Amount looks 100× too large">
+  Both the provider and your custom call must use **smallest currency units**. If you see `$9,900.00` when you expected `$99.00`, you are passing a decimal dollar amount — `99.00` — instead of the integer cent amount `9900`. Fix the value at the source and re-verify with a fresh test transaction.
+</Accordion>
+
+<Accordion title="Duplicate transactions appear">
+  MetricPanel deduplicates on `provider + transactionId`. If duplicates appear, confirm that every retry — including webhook retries from the provider and manual retries from your server — sends the **same `transactionId`** as the original attempt. Generating a new ID on each retry creates a new record.
+</Accordion>
+
+<Accordion title="Campaign is missing from the revenue event">
+  UTM parameters and click identifiers are removed from the URL when a visitor navigates between pages. Capture attribution by calling `metricpanel.getStripeMetadata()` at the moment the visitor initiates checkout — not after they return from the provider's hosted payment page.
+</Accordion>

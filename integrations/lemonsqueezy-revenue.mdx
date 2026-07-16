@@ -1,0 +1,98 @@
+---
+title: "LemonSqueezy Revenue Attribution with MetricPanel"
+sidebarTitle: "LemonSqueezy"
+description: "Attribute LemonSqueezy orders and subscriptions to MetricPanel sessions by embedding attribution fields in meta.custom_data before the checkout redirect."
+---
+
+MetricPanel attributes LemonSqueezy orders and subscriptions by reading the MetricPanel website, visitor, session, and campaign fields from `meta.custom_data` in the signed webhook payload. You embed those fields in the checkout before the buyer is redirected, and MetricPanel recovers them when Lemon Squeezy delivers the event.
+
+<Steps>
+  <Step title="Capture attribution before checkout">
+    Read the current tracked-session metadata in the browser before redirecting the visitor to checkout:
+
+    ```ts
+    const metricpanelMetadata = metricpanel.getStripeMetadata()
+    ```
+
+    The helper name reflects its original Stripe use. For LemonSqueezy, place the returned flat fields inside the checkout's custom data so the webhook payload contains this structure:
+
+    ```json
+    {
+      "meta": {
+        "custom_data": {
+          "metricpanel_website_id": "YOUR_WEBSITE_PUBLIC_ID",
+          "metricpanel_visitor_id": "<visitor-id>",
+          "metricpanel_session_id": "<session-id>",
+          "utm_source": "<utm-source>",
+          "utm_campaign": "<utm-campaign>"
+        }
+      }
+    }
+    ```
+
+    <Warning>
+    Create the checkout on your server. Never expose a LemonSqueezy API key or webhook secret in browser code.
+    </Warning>
+  </Step>
+
+  <Step title="Configure the managed connection">
+    Open your website's **Settings**, choose **Revenue**, and select **LemonSqueezy**. Save your store ID and an API key scoped to only the order and subscription read access required by the connection.
+
+    MetricPanel reports saved-credential health separately from webhook health and attributed-revenue health, so each layer can be verified independently.
+
+    <Note>
+    The webhook runtime also requires the deployment operator to configure the matching LemonSqueezy signing secret on the API side. Saving credentials in the website screen alone does not prove that the public webhook endpoint can validate deliveries — confirm with your operator that the secret is set.
+    </Note>
+  </Step>
+
+  <Step title="Configure the signed webhook">
+    Register the MetricPanel API runtime endpoint in your LemonSqueezy store webhook settings:
+
+    ```text
+    https://api.your-metricpanel-domain.com/api/webhooks/lemonsqueezy
+    ```
+
+    MetricPanel currently handles the following events:
+
+    - `order_created` — recorded only when the order status is **paid**
+    - `subscription_created` — recorded only when the subscription is **active** or **on trial**
+    - `subscription_updated` — recorded only when the subscription is **active** or **on trial**
+
+    Keep the same signing secret in both LemonSqueezy and the MetricPanel API deployment. A mismatch causes every delivery to fail signature verification.
+  </Step>
+
+  <Step title="Verify with a test purchase">
+    Confirm end-to-end attribution before going live:
+
+    1. Start a checkout from a browser session that has loaded the MetricPanel tracker.
+    2. Confirm the checkout custom data contains the MetricPanel website ID and the available visitor and session IDs.
+    3. Complete a provider test purchase or test subscription lifecycle.
+    4. Confirm LemonSqueezy reports a successful signed webhook delivery.
+    5. Check the connection's **last webhook** and **last revenue** timestamps in the dashboard.
+    6. Open Revenue Analytics and confirm the transaction appears exactly once with the expected amount, currency, product, and attribution fields.
+  </Step>
+</Steps>
+
+## Common failures
+
+<Accordion title="Signature rejected">
+The signing secret configured on the API deployment does not match the secret set on the LemonSqueezy webhook endpoint. Copy the secret directly from LemonSqueezy to avoid transcription errors, and confirm with your MetricPanel operator that it is applied to the API runtime — not just the dashboard UI.
+</Accordion>
+
+<Accordion title="No attribution">
+`meta.custom_data` in the webhook payload does not contain the MetricPanel website ID or tracked-session fields. Confirm that `getStripeMetadata()` ran in a tracked browser session before the checkout was created, and that every returned field was forwarded to the server and embedded in the checkout custom data.
+</Accordion>
+
+<Accordion title="No revenue">
+The event name or payment/subscription status falls outside the states MetricPanel currently handles. Verify that you subscribed to `order_created`, `subscription_created`, or `subscription_updated`, and that the test transaction reached a **paid** or **active** status rather than an intermediate state such as pending or draft.
+</Accordion>
+
+<Accordion title="Wrong amount">
+Verify that the value coming from the LemonSqueezy webhook is in the smallest currency unit (for example, cents for USD). Passing a major-unit value instead of a minor-unit value results in amounts that are off by a factor of 100.
+</Accordion>
+
+<Accordion title="Duplicate attempt">
+Retried or replayed webhooks can produce duplicate revenue records. Preserve LemonSqueezy's stable order or subscription identifier and use it to deduplicate across retries and related events.
+</Accordion>
+
+Continue with [Revenue](/revenue) for attribution, API ingestion, and idempotency concepts.

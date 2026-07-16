@@ -1,0 +1,107 @@
+---
+title: "Stay Informed with Metric Alerts in MetricPanel"
+sidebarTitle: "Alerts"
+description: "Create threshold-based rules that notify your team over Slack, email, or webhook the moment a key metric spikes, drops, or hits a target."
+---
+
+Alerts watch a named metric and fire a notification the moment it crosses a threshold you define. Instead of checking dashboards manually, you can let MetricPanel notify your team over Slack, email, or a webhook when revenue spikes, traffic drops, a goal rate falls, or an error count climbs. A well-configured alert gives your team the time to investigate and respond before a problem compounds.
+
+## Available rule fields
+
+Each alert rule is built from the following fields:
+
+| Field | Choices or meaning |
+| --------------- | ---------------------------------------------------------------------- |
+| Type | Revenue, CAC, traffic, goal, or error |
+| Metric | The metric key evaluated by the rule |
+| Operator | `>`, `>=`, `<`, `<=`, or `=` |
+| Threshold | Positive numeric value used by the comparison |
+| Cooldown period | Minimum minutes between repeated notifications |
+| Channel | Slack, email, or webhook |
+| Destination | Channel-specific email address or URL, unless a website default exists |
+
+<Info>
+  Website owners and admins can create and manage alerts. Viewers can inspect alerts they have been granted access to, but cannot create or change rules.
+</Info>
+
+## Create an alert
+
+<Steps>
+  <Step title="Open Alert settings">
+    Open the website's **Settings**, then choose **Alerts** from the sidebar.
+  </Step>
+  <Step title="Start a new rule">
+    Select **Create Alert** to open the rule builder.
+  </Step>
+  <Step title="Name the rule">
+    Name the rule after the condition **and** the expected response — for example, *"Revenue spike review"* or *"Checkout goal rate drop — investigate"*. A descriptive name helps teammates act quickly when a notification arrives.
+  </Step>
+  <Step title="Configure the condition">
+    Choose the **type**, **metric**, **operator**, **threshold**, and **cooldown period**. Make sure the threshold units match the metric — use smallest currency units for revenue metrics.
+  </Step>
+  <Step title="Choose a delivery channel">
+    Select **Slack**, **email**, or **webhook**, then confirm its destination. See delivery requirements below if a channel is unavailable.
+  </Step>
+  <Step title="Save and test">
+    Save the rule, then immediately click **Test** to send a sample delivery to the destination. Do not depend on an alert rule until a test delivery confirms the destination is reachable.
+  </Step>
+</Steps>
+
+## Delivery requirements
+
+Each channel has a prerequisite before it can receive notifications:
+
+<CardGroup cols={3}>
+  <Card title="Slack" icon="slack">
+    Requires either a destination webhook URL entered on the rule itself, or a configured website-level Slack default in your MetricPanel environment.
+  </Card>
+  <Card title="Email" icon="envelope">
+    Available only when the MetricPanel environment has email delivery configured. If email is unavailable in your environment, choose Slack or webhook instead.
+  </Card>
+  <Card title="Webhook" icon="webhook">
+    Requires a destination URL that can accept an outbound POST request from MetricPanel. Confirm the endpoint is publicly reachable and returns a `2xx` response.
+  </Card>
+</CardGroup>
+
+<Warning>
+  An alert can only be saved when its selected channel is available in your environment. If email is not available, do **not** assume a message was sent — switch to Slack or webhook to ensure delivery.
+</Warning>
+
+## Test and review history
+
+Testing an alert proves that the **current destination** can receive a sample delivery. It does not prove that the metric condition will ever trigger.
+
+After the first real trigger fires, open the alert history and verify:
+
+- The **evaluated value** that triggered the rule
+- The **threshold** it was compared against
+- The **channel** and **send state** (delivered, failed, or pending)
+- Any **delivery error** reported for that attempt
+
+Use the **cooldown period** to prevent a flood of repeated notifications during a sustained condition — for example, set a 60-minute cooldown if a sustained revenue spike should notify your team no more than once per hour.
+
+<Tip>
+  Pause alert rules during planned traffic tests, load tests, or billing sandbox activity. Notifications fired during these periods are misleading and can train your team to ignore future alerts.
+</Tip>
+
+## Operational checklist
+
+Before relying on an alert rule in production, confirm each of the following:
+
+<CardGroup cols={2}>
+  <Card title="Metric is populated" icon="chart-line">
+    The metric key is already populated by the website's current instrumentation. An alert on an empty metric will never fire.
+  </Card>
+  <Card title="Threshold units are correct" icon="ruler">
+    Threshold units match the metric — especially for revenue metrics that use smallest currency units such as cents.
+  </Card>
+  <Card title="Destination is monitored" icon="bell">
+    The destination belongs to a monitored team channel or inbox — not a personal address that goes unread on weekends.
+  </Card>
+  <Card title="Test delivery succeeded" icon="circle-check">
+    A test delivery succeeded before the rule went live. Re-test whenever you update the destination.
+  </Card>
+  <Card title="Someone owns the response" icon="user">
+    A named person or on-call rotation knows what to do when a real notification arrives. An unowned alert is the same as no alert.
+  </Card>
+</CardGroup>

@@ -1,0 +1,144 @@
+---
+title: "Switching to MetricPanel: Migration Guide and Parity Checklist"
+sidebarTitle: "Switching"
+description: "Map Plausible and DataFast tracking to MetricPanel, review open product gaps, and follow the parallel-run switching plan before full cutover."
+---
+
+Use this guide to plan a safe migration, map your existing tracking to MetricPanel's data model, run both tools in parallel, and cut over without relying on historical detail that MetricPanel did not collect. This guide focuses on migration mechanics—for buyer-fit comparisons, see the [MetricPanel vs Plausible](https://metricpanel-web.vercel.app/compare/plausible) and [MetricPanel vs Google Analytics](https://metricpanel-web.vercel.app/compare/google-analytics) comparison pages.
+
+## What Migrates Now
+
+### From Plausible
+
+MetricPanel can validate and import supported aggregate and ranking history from a Plausible export package. The following data migrates:
+
+- Daily visitors, visits, pageviews, bounces, and visit duration
+- Top Pages
+- Top Custom Events
+- Top Custom Properties
+- Top Referrers
+- Top Countries and Top Locations
+- Devices
+- Browsers
+- Operating Systems
+
+<Note>
+  Entry Pages and Exit Pages are **validation-only**—they import for checking purposes but are not surfaced as standalone dashboard views. Visitor-level journeys and revenue are **not reconstructed** from Plausible exports. The Journeys dashboard tab starts from live MetricPanel events, sessions, and revenue rows only.
+</Note>
+
+See [Import from Plausible](/import-from-plausible) for the exact supported file shape and the dashboard import workflow.
+
+### From DataFast-Style Tracking
+
+MetricPanel is not yet a one-for-one DataFast tracker replacement. Use this table to map your existing DataFast instrumentation to the MetricPanel equivalent:
+
+| DataFast concept | MetricPanel equivalent today |
+|---|---|
+| `data-website-id` script install | `data-website-id` on the MetricPanel hosted script |
+| `data-domain` | Not read by MetricPanel. Domain validation happens server-side through request origin and allowlists. |
+| `ref`, `source`, `via` attribution | Supported as fallback source aliases when `utm_source` is absent |
+| `data-fast-goal` click goals | Supported as a codeless goal alias |
+| `data-fast-goal-*` metadata | Supported as codeless goal metadata; kebab-case keys are converted to `snake_case` |
+| `data-fast-scroll` | Supported as an opt-in element scroll goal. Use `data-track-scroll` for global scroll-depth events instead. |
+| `data-fast-404` | Supported as an opt-in 404 template marker that sends a `not_found` event |
+| `data-allowed-hostnames` | Accepted as an alias for `data-link-domains` for cross-domain linker decoration |
+| Payments API | Use `POST /api/v1/revenue/events` with an `ingest`-scoped website API token, or configure provider webhooks for Stripe, Polar, LemonSqueezy, and Shopify |
+
+## Open Product Gaps
+
+Review this list before committing to a full cutover. These are the parity gaps that remain open today:
+
+<Accordion title="Search Console and SEO Reporting">
+  MetricPanel does not connect to Google Search Console today. Do not promise keyword imports, query drilldowns, Search Console OAuth, or organic-search opportunity reports in the current product. If Search Console is part of your migration plan, keep your existing Search Console workflow active until a dedicated integration ships.
+</Accordion>
+
+<Accordion title="Scheduled Reporting and Digest Delivery">
+  MetricPanel does not ship scheduled digest delivery today. The dashboard has a manual Insight Summary and CSV export, and the alerting system can notify operators about configured website alerts. It is not a weekly analytics report, Slack digest, KPI email, AI-written narrative, or spike/drop investigation workflow.
+</Accordion>
+
+<Accordion title="Visitor-Facing Partner Dashboards">
+  MetricPanel ships token-backed public report links for read-only website analytics. It does not ship visitor-facing partner dashboards today. Owners and admins can create a shared report link and iframe snippet from a website's API & Security tab.
+</Accordion>
+
+<Accordion title="Short Links, Affiliates, and Mention Ingestion">
+  MetricPanel supports UTM parameters and DataFast-style `ref`, `source`, and `via` attribution. It does not ship a short-link product (no branded redirect domains, link-level click logs, QR codes, or link tags), an affiliate/referral program module (no commission ledger, payout workflow, or partner account model), or social/search mention ingestion (no Google Search Console queries, crawl rankings, backlinks, or social mention feeds).
+</Accordion>
+
+<Accordion title="Mobile SDKs">
+  MetricPanel supports React Native and native JavaScript SDK entrypoints. Packaged native iOS and Android SDKs with mobile-specific workflows are not yet available.
+</Accordion>
+
+<Accordion title="AI and Natural-Language Analytics">
+  The dashboard has a manual data-backed Insight Summary and the public API has a deterministic agent summary bundle at `/api/v1/analytics/agent-summary`. There is no cadence scheduling, recipient management, natural-language query interface, hosted MCP server, or AI narrative workflow today.
+</Accordion>
+
+<Accordion title="Visitor Prediction and Lead Scoring">
+  MetricPanel exposes observed analytics, live visitor journeys, goals, funnels, revenue attribution, and alerts. It does not infer who is likely to buy or assign automated scores to visitors. Do not describe the current AI or journey surfaces as predictive scoring.
+</Accordion>
+
+<Accordion title="Migration APIs and Broader Export Schema">
+  MetricPanel has token-scoped `/api/v1/analytics/stats`, `/api/v1/analytics/agent-summary`, `/api/v1/analytics/top`, `/api/v1/analytics/events`, `/api/v1/analytics/visitors`, and `/api/v1/analytics/export` read endpoints. Broader migration response-schema design for dashboard and reporting migration tooling is still in progress.
+</Accordion>
+
+## Sharing and Reporting Boundary
+
+MetricPanel ships **token-backed public report links** for read-only website analytics. Owners and admins can create a shared report link and an iframe embed snippet from a website's API & Security tab. Both use an analytics-scoped API token and can be revoked by deleting that token.
+
+Authenticated dashboard analytics and CSV exports remain operator-only workflows. The public token-scoped read endpoints are `/api/v1/analytics/stats`, `/api/v1/analytics/agent-summary`, `/api/v1/analytics/top`, `/api/v1/analytics/events`, `/api/v1/analytics/visitors`, and `/api/v1/analytics/export`.
+
+MetricPanel does **not** ship visitor-facing partner dashboards or scheduled digest delivery today.
+
+## Link, Affiliate, and Mention Boundaries
+
+MetricPanel supports `source`, `medium`, `campaign`, `referrer`, and DataFast-style `ref`, `source`, and `via` attribution for analytics and revenue reporting. It does not ship a Dub-style short-link product—there are no managed short links, branded redirect domains, link-level click logs, QR codes, link tags, or conversion matching tied to generated short links.
+
+MetricPanel also does not ship affiliate or referral-program management. Current revenue attribution can show that traffic or purchases came from a campaign, source, referrer, or partner-like URL parameter, but there is no partner account model, commission ledger, payout workflow, affiliate invite flow, or public partner dashboard.
+
+## Google Search Console Boundary
+
+MetricPanel does not connect to Google Search Console today. Do not promise keyword imports, query drilldowns, Search Console OAuth, or organic-search opportunity reports.
+
+If Search Console is part of your migration plan, keep your existing Search Console workflow active and use MetricPanel for traffic, goal, funnel, alert, privacy, and revenue-event workflows until a dedicated integration is built.
+
+## Recommended Switching Plan
+
+<Steps>
+
+  <Step title="Install MetricPanel in Parallel">
+    Install MetricPanel beside your current analytics tool on one production website. Do not remove the existing tool yet. Running both in parallel lets you compare totals and catch any instrumentation gaps before cutover.
+  </Step>
+
+  <Step title="Confirm Base Data">
+    Verify that pageviews, custom events, goals, and funnels are all receiving live traffic and recording correctly in MetricPanel. Fix any discrepancies in website ID, domain allowlists, or consent configuration before proceeding.
+  </Step>
+
+  <Step title="Add Revenue Tracking">
+    Add revenue events or configure provider webhooks only after your base source data is clean. Avoid attributing revenue to sessions captured before your event tracking was verified—those rows cannot be retroactively corrected.
+  </Step>
+
+  <Step title="Import Historical Data">
+    If you are migrating from Plausible, import your export package now and compare the aggregate totals and top-page rankings against what Plausible reports for the same date range. Acceptable deltas depend on your traffic volume and the export date range.
+  </Step>
+
+  <Step title="Run Both Tools to Full Parity">
+    Keep the old tool active until **all** of the following match your rollout checklist:
+    - Source attribution and campaign tracking
+    - Goals and funnels
+    - Revenue events and webhook delivery
+    - Alerts and notifications
+    - Privacy controls and consent configuration
+  </Step>
+
+  <Step title="Audit Open Gaps Before Full Cutover">
+    Review the open product gaps listed above against your team's requirements. Use that list as your launch checklist. If any gap is blocking, keep the old tool running for that specific use case rather than working around a missing feature.
+  </Step>
+
+</Steps>
+
+## Related Guides
+
+- [Quick Start](/quick-start) — install and confirm your first pageview and event
+- [Tracking Script](/tracking-script) — configure the hosted script for your setup
+- [Import from Plausible](/import-from-plausible) — step-by-step Plausible import workflow
+- [API Reference](/api-reference) — explore all token-scoped analytics endpoints
+- [Self-Hosting](/self-hosting) — deploy and operate MetricPanel yourself

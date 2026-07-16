@@ -1,0 +1,216 @@
+---
+title: "Consent Banner Integration Examples for MetricPanel"
+sidebarTitle: "Banner Examples"
+description: "Copy-paste consent banner implementations for plain HTML sites, React/Next.js apps, and third-party CMP bridges using MetricPanel's tracking controls."
+---
+
+Use these examples when you need concrete, working consent-banner wiring rather than a conceptual overview. Each pattern corresponds to a different site architecture, and all three keep MetricPanel in consent mode so no events leave the browser before the visitor has made a choice.
+
+MetricPanel supports two distinct consent paths:
+
+- **Hosted script** — exposes `window.metricpanel.giveConsent()` once your banner or CMP allows analytics. Your banner owns all persistence and any revoke behavior.
+- **`@metricpanel/sdk`** — adds `grantConsent()`, `revokeConsent()`, and `hasConsent()` for app-driven consent state management with built-in revoke support.
+
+<Tabs>
+  <Tab title="Pattern 1: Hosted Script + Custom Banner">
+    This is the simplest setup for a marketing site or static website. Drop the snippet into your HTML, wire up two button handlers, and you're done.
+
+    ```html
+    <!-- 1. Load MetricPanel in consent + cookieless mode -->
+    <script
+      defer
+      src="https://app.your-metricpanel-domain.com/script.js"
+      data-website-id="your-website-id"
+      data-api-url="https://api.your-metricpanel-domain.com"
+      data-consent
+      data-cookieless
+    ></script>
+
+    <!-- 2. Banner markup — hidden by default, revealed by JS when needed -->
+    <div id="analytics-banner" hidden>
+      <p>
+        We use privacy-focused analytics to understand product usage.
+        <a href="/privacy">Learn more</a>
+      </p>
+      <button type="button" onclick="declineAnalytics()">Decline</button>
+      <button type="button" onclick="acceptAnalytics()">Accept</button>
+    </div>
+
+    <!-- 3. Banner logic -->
+    <script>
+      const CONSENT_KEY = 'metricpanel_analytics_consent'
+
+      function applyStoredConsent() {
+        const storedConsent = localStorage.getItem(CONSENT_KEY)
+
+        if (storedConsent === 'granted') {
+          // Visitor already accepted — re-apply consent silently
+          window.metricpanel?.giveConsent()
+          return
+        }
+
+        if (storedConsent !== 'denied') {
+          // No prior choice — show the banner
+          document.getElementById('analytics-banner')?.removeAttribute('hidden')
+        }
+      }
+
+      function acceptAnalytics() {
+        localStorage.setItem(CONSENT_KEY, 'granted')
+        document.getElementById('analytics-banner')?.setAttribute('hidden', 'hidden')
+        window.metricpanel?.giveConsent()
+      }
+
+      function declineAnalytics() {
+        localStorage.setItem(CONSENT_KEY, 'denied')
+        document.getElementById('analytics-banner')?.setAttribute('hidden', 'hidden')
+      }
+
+      document.addEventListener('DOMContentLoaded', applyStoredConsent)
+    </script>
+    ```
+
+    **What this pattern does:**
+    - Queues MetricPanel events until the visitor accepts analytics.
+    - Persists the visitor's choice in `localStorage` so the banner doesn't reappear on the next page load.
+    - Re-applies consent automatically on subsequent page loads when the stored choice is `granted`.
+
+    **What it does not do:**
+    - The hosted script does not expose a `revokeConsent()` helper.
+    - It does not automatically clear identifiers if you later flip consent to `denied`.
+
+    <Note>
+      If your policy requires revocation to clear local identifiers immediately, use Pattern 2 (SDK) or add a storage-clearing + page-reload flow around the hosted script.
+    </Note>
+  </Tab>
+
+  <Tab title="Pattern 2: React / Next.js (SDK)">
+    Use the SDK when your app owns consent state and you need explicit revoke and status methods. Install `@metricpanel/sdk`, then add the component below to your layout.
+
+    ```tsx
+    'use client'
+
+    import { useEffect, useState } from 'react'
+    import MetricPanelSDK from '@metricpanel/sdk'
+
+    // Instantiate once outside the component so the SDK instance is shared
+    const metricpanel = new MetricPanelSDK({
+      websiteId: process.env.NEXT_PUBLIC_METRICPANEL_WEBSITE_ID!,
+      waitForConsent: true,
+      cookieless: true,
+      anonymizeIP: true,
+      respectDoNotTrack: true,
+    })
+
+    export function AnalyticsConsentBanner() {
+      const [hasConsent, setHasConsent] = useState(true)
+
+      useEffect(() => {
+        // Read the current consent state from the SDK on mount
+        setHasConsent(metricpanel.hasConsent())
+      }, [])
+
+      async function acceptAnalytics() {
+        await metricpanel.grantConsent()
+        setHasConsent(true)
+      }
+
+      function declineAnalytics() {
+        metricpanel.revokeConsent()
+        setHasConsent(false)
+      }
+
+      // Don't render the banner when the visitor has already consented
+      if (hasConsent) {
+        return null
+      }
+
+      return (
+        <div>
+          <p>Allow privacy-focused analytics for product improvement?</p>
+          <button type="button" onClick={declineAnalytics}>
+            Decline
+          </button>
+          <button type="button" onClick={acceptAnalytics}>
+            Accept
+          </button>
+        </div>
+      )
+    }
+    ```
+
+    Add `<AnalyticsConsentBanner />` to your root layout so it renders on every page.
+
+    **What this pattern gives you:**
+    - Queued events until `grantConsent()` is called.
+    - `grantConsent()` for the acceptance flow — flushes the queued event backlog.
+    - `revokeConsent()` to clear local consent state and stored identifiers immediately.
+    - `hasConsent()` so the banner renders based on live SDK state, not a separate `localStorage` key you manage yourself.
+
+    <Tip>
+      Add `NEXT_PUBLIC_METRICPANEL_WEBSITE_ID` to your `.env.local` file. The SDK constructor will throw at runtime if it receives `undefined`.
+    </Tip>
+  </Tab>
+
+  <Tab title="Pattern 3: Third-Party CMP Bridge">
+    If you already use a consent management platform (CMP), keep MetricPanel in consent mode and trigger it from the CMP's analytics-approved callback. Replace the bridge hook comments with your CMP's real event API.
+
+    ```html
+    <!-- 1. Load MetricPanel in consent mode -->
+    <script
+      defer
+      src="https://app.your-metricpanel-domain.com/script.js"
+      data-website-id="your-website-id"
+      data-api-url="https://api.your-metricpanel-domain.com"
+      data-consent
+    ></script>
+
+    <!-- 2. CMP bridge -->
+    <script>
+      function onAnalyticsConsentGranted() {
+        // Called by your CMP when the visitor approves the analytics category
+        window.metricpanel?.giveConsent()
+      }
+
+      function onAnalyticsConsentRevoked() {
+        // Called by your CMP when the visitor withdraws analytics consent
+        localStorage.removeItem('metricpanel_analytics_consent')
+        window.location.reload()
+      }
+
+      // Replace these stubs with your CMP's real analytics-category callbacks.
+      // Examples:
+      //   OneTrust:   OneTrust.OnConsentChanged(...)
+      //   Cookiebot:  window.addEventListener('CookiebotOnAccept', ...)
+      //   Usercentrics: window.__ucCmp.getConsents(...)
+    </script>
+    ```
+
+    **Recommended CMP wiring checklist:**
+    1. Keep MetricPanel behind an explicit analytics consent category in your CMP configuration.
+    2. Call `window.metricpanel.giveConsent()` only after that category is approved — never on page load unconditionally.
+    3. Let the CMP own persistence for the visitor's choice.
+    4. Decide whether revocation needs the SDK path (for immediate identifier clearing) or a full page reload that reboots the hosted script in a denied state.
+
+    <Note>
+      The hosted script does not expose `revokeConsent()`. If your CMP fires a revoke callback, the reload approach above is the simplest way to ensure MetricPanel does not send further events in that session.
+    </Note>
+  </Tab>
+</Tabs>
+
+## Testing Checklist
+
+Before shipping any of the patterns above, verify all five scenarios end-to-end:
+
+<Accordion title="Run through these checks in an incognito window">
+  1. **No stored choice** — clear `localStorage` and reload. The banner should appear and MetricPanel should not send any events (check the Network tab for requests to `/api/events`).
+  2. **Accept** — click Accept. Queued events should flush and new pageviews/custom events should send normally.
+  3. **Reload after acceptance** — close and reopen the page. Consent should reapply automatically and the banner should not reappear.
+  4. **Decline** — set consent to denied, reload. The banner should stay hidden on subsequent loads and MetricPanel should continue blocking events.
+  5. **Revoke (if supported)** — if you implement revocation, confirm that identifiers and consent state are cleared in the way your privacy policy promises.
+</Accordion>
+
+## Related Guides
+
+- [Privacy & Consent](/privacy-consent) — tracker option reference and visitor deletion API
+- [Data Retention & Portability](/data-retention-portability) — retention windows, CSV export, and operator deletion workflows

@@ -1,0 +1,119 @@
+---
+title: "Track Custom Events and Goals in MetricPanel"
+sidebarTitle: "Events"
+description: "Define your event taxonomy, send events via the SDK or hosted script, use the ingestion API, and verify events appear correctly before building funnels."
+---
+
+Events are the stable vocabulary behind goals, funnels, and behavior reports in MetricPanel. Start with a small naming plan tied to real product decisions, then expand only when a new event will answer a question you actually need to answer. Sending too many events too early creates noise that makes reports harder to trust.
+
+## Choose the right event type
+
+Pick the event type that matches what you want to measure:
+
+| Need | Use |
+|---|---|
+| A page or screen was viewed | `pageview` |
+| A user performed a product action | custom `event` |
+| A defined conversion was completed | a goal definition or `goal` event |
+| Money was captured or recognized | `revenue` |
+
+<Note>
+  Do not send every interaction as a custom event. Pageviews already carry path, title, referrer, query string, device, and campaign context automatically when available.
+</Note>
+
+## Name events consistently
+
+Use lowercase, past-tense names that describe the completed action. Consistent naming makes events reusable across goals and funnels as your product evolves.
+
+```text Good event names
+signup_started
+signup_completed
+demo_requested
+checkout_started
+purchase_completed
+plan_upgraded
+```
+
+Avoid names tied to button copy such as `clicked_blue_button`. UI text changes far more often than the underlying business action, and renaming events breaks historical comparisons.
+
+## Send with the SDK
+
+Call `event()` on your `metricpanel` instance with the event name and an optional properties object:
+
+```ts
+await metricpanel.event('signup_completed', {
+  plan: 'pro',
+  acquisition_offer: 'annual-trial',
+  invited_by_team: false,
+})
+```
+
+The browser SDK accepts at most ten flat properties. Supported value types are `string`, `number`, `boolean`, and `null`. Nested objects and arrays are not valid event properties.
+
+## Send with the hosted script
+
+After the tracking script has loaded, call `window.metricpanel.track()` with the event name and optional properties:
+
+```html
+<script>
+  window.metricpanel.track('demo_requested', {
+    placement: 'pricing_hero',
+  })
+</script>
+```
+
+<Warning>
+  If your call can happen before the script finishes loading, initialize the queue pattern described in the [Tracking Script](/tracking-script) guide instead of assuming `window.metricpanel` is already defined.
+</Warning>
+
+## Send through the ingestion API
+
+Server-side systems can post events directly to `POST /api/events` without the browser SDK or hosted script. Each request requires a website ID, visitor ID, session ID, event type, and path. Use a website API token or HMAC signature when your deployment requires authenticated ingestion.
+
+See the [API reference](/api-reference) and [HMAC signatures](/api-integration/hmac-signatures) for the full request schema, authentication details, and server-side examples.
+
+## Choose properties carefully
+
+Good properties make one event reusable across multiple reports and goals. Design them to answer questions you anticipate needing — not to log everything that was on the page.
+
+```ts
+await metricpanel.event('checkout_started', {
+  plan: 'pro',
+  interval: 'yearly',
+  currency: 'usd',
+  coupon_applied: true,
+})
+```
+
+Keep these rules in mind when designing properties:
+
+- Use at most **10 flat properties** per event
+- Supported value types: `string`, `number`, `boolean`, `null`
+- Nested objects and arrays are not supported — flatten them first
+- **Never** include passwords, payment card data, access tokens, private message content, or unnecessary personal data
+- Prefer stable IDs or controlled category values when a property needs to be joined to external data
+
+## Verify an event
+
+<Steps>
+  <Step title="Enable debug mode">
+    Turn on SDK or script debug mode in a non-production environment. The SDK uses the `debug: true` config option; the hosted script uses the `data-debug` attribute.
+  </Step>
+  <Step title="Trigger the action">
+    Perform the action that should fire the event exactly once.
+  </Step>
+  <Step title="Inspect the network request">
+    Open browser DevTools, go to the Network tab, and confirm the request to `/api/events` contains the correct event name and properties.
+  </Step>
+  <Step title="Confirm in MetricPanel">
+    Check the event view in your MetricPanel dashboard to confirm the event name and properties arrived as expected.
+  </Step>
+  <Step title="Repeat from a second session">
+    Verify the event fires from a fresh session before building a goal or funnel that depends on it.
+  </Step>
+  <Step title="Remove debug mode">
+    Disable debug mode before deploying to production to keep the browser console clean.
+  </Step>
+</Steps>
+
+If the event is missing from the dashboard, check consent state, website ID, allowed domain, API base URL, and browser console output before changing your event taxonomy.

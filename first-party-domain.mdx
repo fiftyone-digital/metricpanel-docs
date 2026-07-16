@@ -1,0 +1,115 @@
+---
+title: "Set Up a First-Party Domain for MetricPanel Tracking"
+sidebarTitle: "First-Party Domain"
+description: "Route the MetricPanel script and ingestion API through a hostname or path you control using Vercel rewrites, Nginx reverse proxy, or a custom subdomain."
+---
+
+A first-party tracking domain routes the MetricPanel script or ingestion requests through a hostname or path you control — such as `analytics.example.com` or `/analytics` — rather than directly through MetricPanel's infrastructure. This can improve delivery alignment with your domain architecture and give you more control over how requests are handled. It does not guarantee collection in every browser or ad-blocker configuration.
+
+## Decide what to proxy
+
+MetricPanel uses separate origins for the hosted script and the ingestion API. Before setting anything up, decide which surfaces you want to proxy:
+
+| Model | Script URL | API base |
+|---|---|---|
+| Direct hosted | MetricPanel script origin | MetricPanel API origin |
+| First-party script | Your proxy for `/script.js` | MetricPanel API origin |
+| First-party full path | Your proxy for `/script.js` | Your proxy for `/api` |
+
+<Note>
+  If you proxy only the script, keep `data-api-url` pointed at the real MetricPanel API origin. A script CNAME alone does not automatically proxy `/api/events`.
+</Note>
+
+## Vercel path proxy
+
+Add rewrites to the `vercel.json` of the application that owns your public domain. The rewrites forward both the script and the ingestion API through paths under your own origin:
+
+```json vercel.json
+{
+  "rewrites": [
+    {
+      "source": "/analytics/script.js",
+      "destination": "https://app.your-metricpanel-domain.com/script.js"
+    },
+    {
+      "source": "/analytics/api/:path*",
+      "destination": "https://api.your-metricpanel-domain.com/api/:path*"
+    }
+  ]
+}
+```
+
+Then install the hosted tracker using the first-party paths as both the script source and the API base:
+
+```html
+<script
+  defer
+  src="/analytics/script.js"
+  data-website-id="YOUR_WEBSITE_ID"
+  data-api-url="/analytics/api"
+></script>
+```
+
+Confirm that your framework preserves request bodies, `Content-Type` headers, origin information, and HTTP status codes on the API rewrite — some frameworks strip or rewrite these by default.
+
+## Nginx reverse proxy
+
+An Nginx deployment can proxy the same two surfaces using `proxy_pass` directives:
+
+```nginx
+location = /analytics/script.js {
+    proxy_pass https://app.your-metricpanel-domain.com/script.js;
+    proxy_set_header Host app.your-metricpanel-domain.com;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+
+location /analytics/api/ {
+    proxy_pass https://api.your-metricpanel-domain.com/api/;
+    proxy_set_header Host api.your-metricpanel-domain.com;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+}
+```
+
+Apply the same TLS configuration, request-size limits, timeout settings, and abuse controls that you use on your other public application routes.
+
+## Subdomain and DNS setup
+
+To use a subdomain such as `analytics.example.com`, create the DNS record required by the platform that will terminate TLS and proxy requests. Then attach the custom domain in that hosting platform — a DNS record alone is not enough, because it does not prove the origin will accept the hostname.
+
+After TLS is active:
+
+1. Point the script `src` and `data-api-url` at the paths your proxy actually implements.
+2. Do not assume a CNAME for the script host also reaches a separately deployed API host.
+3. Confirm TLS is valid and the domain resolves correctly before updating your tracking snippet.
+
+## Test the route
+
+Once your proxy is live, verify both surfaces respond correctly before directing real traffic through them.
+
+```bash
+# Test the script endpoint
+curl -I https://analytics.example.com/script.js
+
+# Test the ingestion endpoint (an empty body should return a validation error, not a 502)
+curl -X POST https://analytics.example.com/api/events \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+The empty event body should return the same validation response as the direct MetricPanel API origin. After confirming the curl responses, verify a real test pageview in the browser network panel and MetricPanel live view.
+
+## Privacy and reliability boundaries
+
+<Warning>
+  A first-party hostname does not remove your consent, disclosure, retention, or deletion obligations. Setting up a proxy changes how requests are routed, not what data protection law requires of you.
+</Warning>
+
+Keep these rules in place for the lifetime of your proxy:
+
+- Do **not** cache ingestion responses or request bodies
+- Cache the versioned tracker only according to its upstream cache headers
+- Preserve request and response headers required by your security and CORS policy
+- Monitor proxy failures separately from MetricPanel ingestion failures so you can distinguish a proxy outage from a tracking issue
+
+If your full-path proxy fails after the script has already loaded, check `data-api-url`, path rewriting configuration, request body forwarding, and the API host before modifying your tracking code.

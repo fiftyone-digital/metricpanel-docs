@@ -1,0 +1,71 @@
+---
+title: "MetricPanel Analytics: Privacy-First Web Analytics Platform"
+sidebarTitle: "Introduction"
+description: "MetricPanel tracks pageviews, events, goals, funnels, and revenue—4.4 KB script, built-in consent mode, and cookieless options for privacy compliance."
+---
+
+MetricPanel is a privacy-focused web analytics platform that helps you measure what actually drives growth—pageviews, custom events, conversion goals, multi-step funnels, and attributed revenue—without the bloat or compliance headaches of legacy tools. A single 4.4 KB (gzip) hosted script is all you need to get started, and the full JavaScript SDK gives you typed, framework-native control when you need it.
+
+## What MetricPanel Tracks
+
+MetricPanel collects the metrics that matter to product and marketing teams:
+
+- **Pageviews** — automatic on every page load and client-side navigation, including hash-router and History API transitions
+- **Custom events** — named actions you define, such as `signup_completed` or `checkout_started`, with optional metadata properties
+- **Goals** — conversions matched from event keys, page paths, or a combination of both rules
+- **Funnels** — ordered multi-step journeys built from URLs, events, and goals, showing exactly where visitors drop off
+- **Revenue attribution** — purchase values tied back to sources, campaigns, landing pages, and funnels via native integrations with Stripe, Polar, LemonSqueezy, and Shopify, or through the revenue events API
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Lightweight Script" icon="bolt">
+    The hosted tracker weighs just **4.4 KB gzip**. It auto-tracks pageviews, outbound links, and file downloads—no configuration required.
+  </Card>
+  <Card title="Privacy Controls" icon="shield-halved">
+    Choose consent-gated, cookieless, or geo-suppressed tracking to match your privacy policy and regional requirements out of the box.
+  </Card>
+  <Card title="Goals & Funnels" icon="filter">
+    Convert raw events into named goals, then chain goals into funnels to surface drop-off rates and optimize high-value journeys.
+  </Card>
+  <Card title="Revenue Attribution" icon="chart-line">
+    Attribute MRR, one-time purchases, and refunds back to traffic sources, campaigns, and funnels via webhooks or the revenue events API.
+  </Card>
+  <Card title="First-Party Proxying" icon="server">
+    Route the tracking script and event ingestion through your own domain to improve delivery rates and satisfy strict CSP policies.
+  </Card>
+  <Card title="Public REST API" icon="code">
+    Pull stats, top rankings, visitor summaries, and raw event data programmatically with token-scoped read endpoints for dashboards and agents.
+  </Card>
+</CardGroup>
+
+## Recommended Rollout Order
+
+Follow this sequence to get reliable data before expanding your instrumentation:
+
+1. **Install the script or SDK** on one production-like website and confirm the script loads without errors.
+2. **Confirm a pageview and one custom event** to verify end-to-end data flow before creating any downstream rules.
+3. **Create a goal** from that confirmed event, then build a two-step funnel around it.
+4. **Add revenue tracking** only after you have identified a reliable client-to-checkout attribution path.
+5. **Configure privacy behavior**, team access, alerts, and provider health before expanding the rollout to additional sites.
+
+<Note>
+  If you are replacing an existing analytics tool, read [Switching to MetricPanel](/switching-to-metricpanel) before going live. It covers migration gaps around historical imports, Search Console, source aliases, and codeless event metadata.
+</Note>
+
+## Where to Go Next
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quick-start">
+    Install MetricPanel and confirm your first pageview and custom event in seven steps.
+  </Card>
+  <Card title="Tracking Script" icon="file-code" href="/tracking-script">
+    Configure the hosted script with consent mode, cookieless options, domain overrides, and more.
+  </Card>
+  <Card title="JavaScript SDK" icon="npm" href="/sdk">
+    Use the typed browser or React Native entrypoint for full programmatic control over event tracking.
+  </Card>
+  <Card title="API Reference" icon="book" href="/api-reference">
+    Explore token-scoped analytics endpoints for stats, top rankings, events, visitors, and exports.
+  </Card>
+</CardGroup>

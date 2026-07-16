@@ -1,0 +1,204 @@
+---
+title: "Install MetricPanel: Framework & CMS Placement Guides"
+sidebarTitle: "Install Guides"
+description: "Copy-paste MetricPanel tracker snippets for Next.js, React, Vite, Astro, WordPress, Webflow, Shopify, Google Tag Manager, and static sites."
+---
+
+Use these guides to place the hosted MetricPanel tracker in your app shell, CMS template, or tag manager. Start with the generated snippet from your MetricPanel dashboard, then adapt only the placement and optional attributes for your specific framework or platform.
+
+## Required Snippet
+
+Every install needs two things on the `<script>` tag: your **website ID** and the **script URL**. If your dashboard and API runtime are hosted on separate deployments, also include `data-api-url`:
+
+```html
+<script
+  defer
+  src="https://app.your-metricpanel-domain.com/script.js"
+  data-website-id="your-website-id"
+  data-api-url="https://api.your-metricpanel-domain.com"
+></script>
+```
+
+<Note>
+  Keep `data-api-url` when your script host and API runtime are separate deployments. Remove it only when `/script.js` and `/api/events` are served from the same origin—for example, when both run on the same Vercel project.
+</Note>
+
+## Framework Guides
+
+<Tabs>
+  <Tab title="Next.js App Router">
+    Place the tracker once in your root layout so it survives client-side route changes. The hosted script already listens to History API navigation events, so **do not** send pageviews manually unless you have a custom routing flow.
+
+    ```tsx
+    // app/layout.tsx
+    import Script from 'next/script'
+    import type { ReactNode } from 'react'
+
+    export default function RootLayout({ children }: { children: ReactNode }) {
+      return (
+        <html lang="en">
+          <body>
+            {children}
+            <Script
+              src="https://app.your-metricpanel-domain.com/script.js"
+              strategy="afterInteractive"
+              data-website-id="your-website-id"
+              data-api-url="https://api.your-metricpanel-domain.com"
+            />
+          </body>
+        </html>
+      )
+    }
+    ```
+
+    <Tip>
+      If your Next.js app uses hash-based routing, add `data-track-hash` to the `Script` component to capture hash-change navigations as pageviews.
+    </Tip>
+  </Tab>
+
+  <Tab title="React / Vite">
+    For React or Vite projects with a static HTML entrypoint, place the script in the shared document head or before the closing `</body>` tag:
+
+    ```html
+    <!-- index.html -->
+    <script
+      defer
+      src="https://app.your-metricpanel-domain.com/script.js"
+      data-website-id="your-website-id"
+      data-api-url="https://api.your-metricpanel-domain.com"
+    ></script>
+    ```
+
+    The script auto-detects client-side navigation via the History API, so a single install in `index.html` covers every route in a single-page app.
+  </Tab>
+
+  <Tab title="Astro">
+    Place the snippet in the base layout that wraps every page. Astro compiles layouts into static HTML, so a single layout entry point is all you need:
+
+    ```html
+    <!-- src/layouts/BaseLayout.astro -->
+    ---
+    // layout front-matter
+    ---
+    <html lang="en">
+      <head>
+        <script
+          defer
+          src="https://app.your-metricpanel-domain.com/script.js"
+          data-website-id="your-website-id"
+          data-api-url="https://api.your-metricpanel-domain.com"
+        ></script>
+      </head>
+      <body>
+        <slot />
+      </body>
+    </html>
+    ```
+  </Tab>
+
+  <Tab title="Static Sites">
+    For plain HTML or any static site generator, add the snippet to the shared document template that produces the `<head>` or closing `</body>` on every page:
+
+    ```html
+    <!-- shared document template or _includes/head.html -->
+    <script
+      defer
+      src="https://app.your-metricpanel-domain.com/script.js"
+      data-website-id="your-website-id"
+      data-api-url="https://api.your-metricpanel-domain.com"
+    ></script>
+    ```
+  </Tab>
+
+  <Tab title="WordPress">
+    Add the snippet through your theme's global header/footer injection point or a site-wide custom code plugin. Install it **once**—do not add it in both your theme and a tag manager at the same time.
+
+    Use the frontend website ID. Do not use an admin dashboard URL as the tracked domain unless you intentionally want to track WordPress admin traffic alongside public visitor traffic.
+
+    <Warning>
+      Double-installing the script causes duplicate events. If you already have the snippet in a plugin, remove it from your theme's `header.php` (or vice versa) before publishing.
+    </Warning>
+  </Tab>
+
+  <Tab title="Webflow / No-Code">
+    Paste the snippet into the **site-wide custom code** area so it loads on every published page. If your builder has separate head and footer fields, prefer the footer field and keep `defer` on the script tag.
+
+    After saving the custom code, **publish the site** before verifying. Webflow and most no-code builders serve a cached pre-publish version in their editors—pageviews only appear once the live domain is updated.
+  </Tab>
+
+  <Tab title="Shopify">
+    Use a theme or customer-event install location that is allowed by your Shopify plan and checkout setup. If your storefront and checkout live on different hostnames, add `data-link-domains` to stitch visitor identity across the boundary:
+
+    ```html
+    <script
+      defer
+      src="https://app.your-metricpanel-domain.com/script.js"
+      data-website-id="your-website-id"
+      data-api-url="https://api.your-metricpanel-domain.com"
+      data-link-domains="checkout.example.com, shop.example.com"
+    ></script>
+    ```
+
+    <Warning>
+      Revenue attribution must come from MetricPanel revenue events or provider webhooks—not from pageviews alone. Do not infer paid orders from checkout page visits.
+    </Warning>
+  </Tab>
+
+  <Tab title="Google Tag Manager">
+    Create a **Custom HTML** tag in GTM and paste the hosted script snippet into it. Set the trigger to fire on all pages after your consent rules are satisfied.
+
+    If your consent management platform controls analytics storage, either:
+
+    - **Block the GTM tag** until consent exists using a GTM consent initialization trigger, or
+    - **Add `data-consent`** to the script tag and call `window.metricpanel.giveConsent()` from your consent callback after the visitor accepts.
+
+    ```html
+    <!-- GTM Custom HTML tag body -->
+    <script
+      defer
+      src="https://app.your-metricpanel-domain.com/script.js"
+      data-website-id="your-website-id"
+      data-api-url="https://api.your-metricpanel-domain.com"
+      data-consent
+    ></script>
+    ```
+  </Tab>
+</Tabs>
+
+## Common Optional Attributes
+
+Add these attributes directly to your `<script>` tag to adjust tracking behavior without changing any application code:
+
+| Need | Attribute |
+|---|---|
+| Separate API runtime | `data-api-url="https://api.example.com"` |
+| Local development verification | `data-allow-localhost` |
+| Consent-gated tracking | `data-consent` |
+| Session-scoped storage instead of cookies | `data-cookieless` |
+| Shared identity across sibling subdomains | `data-cookie-domain=".example.com"` |
+| Explicit cross-domain visitor/session links | `data-link-domains="checkout.example.com"` |
+| Hash-router pageviews | `data-track-hash` |
+| Scroll-depth events | `data-track-scroll` |
+| Debug logging to the browser console | `data-debug` |
+
+## Verification Checklist
+
+Run through these checks on your **live domain** after every fresh install:
+
+1. Open the live page and confirm `/script.js` returns a `200` response in the Network tab.
+2. Confirm the script tag has the correct `data-website-id` value.
+3. Confirm events post to the API runtime that owns `/api/events`—check the Network tab for the request.
+4. Verify that consent mode is either satisfied or intentionally disabled.
+5. Click one internal route, one outbound link, and one custom goal marker if your site uses them—confirm all three appear in MetricPanel.
+6. Keep your previous analytics tool installed until MetricPanel pageviews, source attribution, goals, and revenue events all match your rollout checklist.
+
+<Tip>
+  Use `data-debug` during verification to log every tracked event to the browser console. Remove it before deploying to production.
+</Tip>
+
+## Related Guides
+
+- [Quick Start](/quick-start) — end-to-end setup walkthrough
+- [Tracking Script](/tracking-script) — full attribute and configuration reference
+- [Switching to MetricPanel](/switching-to-metricpanel) — migration plan and compatibility notes
+- [Troubleshooting](/troubleshooting) — diagnose missing events and script errors

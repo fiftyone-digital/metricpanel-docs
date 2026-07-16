@@ -1,0 +1,214 @@
+---
+title: "Running Performance Benchmarks for MetricPanel"
+sidebarTitle: "Performance"
+description: "Measure tracker script size, ingest throughput, and dashboard responsiveness against isolated environments and record baselines before using results as release evidence."
+---
+
+MetricPanel ships a benchmark command that measures the three performance surfaces that matter most for a healthy deployment: the size of the served tracker script, the throughput and latency of the event-ingest pipeline, and the responsiveness of dashboard routes. All network-dependent checks are opt-in—by default the command reads only the built tracker from disk and skips ingest and dashboard tests unless you provide explicit target URLs.
+
+## What the Benchmarks Measure
+
+| Surface | What is measured |
+|---|---|
+| **Tracker size** | Raw byte count and gzip byte count of `apps/dashboard/public/script.js` |
+| **Ingest throughput** | Accepted events, requests per second, p50/p95 latency, and status-code distribution against `POST /api/events` |
+| **Dashboard responsiveness** | HTTP response latency (p50/p95) for selected dashboard routes |
+
+## Running Benchmarks
+
+Build the tracker before measuring its size. The benchmark command reads the built artifact from disk, so an out-of-date build will produce stale numbers.
+
+<Steps>
+  <Step title="Build the tracker">
+    ```bash
+    bun run --cwd packages/tracker-script build
+    ```
+  </Step>
+  <Step title="Run the benchmark">
+    ```bash
+    bun run bench:performance
+    ```
+
+    Default behavior with no environment variables set:
+    - Reads `apps/dashboard/public/script.js`
+    - Reports raw and gzipped tracker byte counts
+    - Skips ingest benchmarking (requires `PERF_INGEST_API_URL` and `PERF_INGEST_WEBSITE_PUBLIC_ID`)
+    - Skips dashboard benchmarking (requires `PERF_DASHBOARD_URL`)
+  </Step>
+</Steps>
+
+## Current Tracker Size
+
+The tracker script is built from `packages/tracker-script/src/script.js` and emitted to `apps/dashboard/public/script.js`.
+
+```text
+Tracker script: 11802 bytes raw, 4399 bytes gzip
+```
+
+<Note>
+  This was measured on **May 9, 2026** after `bun run --cwd packages/tracker-script build`. Record the exact byte count in release notes or status logs whenever you change tracker behavior. If the script grows, document why the added capability is worth the extra bytes.
+</Note>
+
+## Ingest Throughput
+
+The ingest benchmark posts synthetic `pageview` events to `POST /api/events` on your target. Run it only against an **isolated, disposable** target. The benchmark fails closed unless you explicitly set `PERF_INGEST_ISOLATED=1` to confirm the target data is disposable.
+
+**Minimum required variables:**
+
+```bash
+PERF_INGEST_API_URL="https://api.preview.example.com" \
+PERF_INGEST_WEBSITE_PUBLIC_ID="web_disposable_benchmark" \
+PERF_INGEST_ISOLATED="1" \
+bun run bench:performance
+```
+
+**Optional variables:**
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `PERF_INGEST_ISOLATED` | required | Must be `1` or `true` to confirm disposable data |
+| `PERF_INGEST_REQUESTS` | `100` | Total synthetic events to send |
+| `PERF_INGEST_CONCURRENCY` | `10` | Concurrent event requests |
+| `PERF_INGEST_PATH` | `/__metricpanel_benchmark` | Event path used for synthetic pageviews |
+| `PERF_INGEST_API_TOKEN` | unset | Optional website API token sent as `X-API-Token` |
+| `PERF_TRACKER_SCRIPT_PATH` | `apps/dashboard/public/script.js` | Override the local tracker file used for size measurement |
+
+**Extended example with custom concurrency:**
+
+```bash
+PERF_INGEST_API_URL="$API_URL" \
+PERF_INGEST_WEBSITE_PUBLIC_ID="$BENCHMARK_WEBSITE_PUBLIC_ID" \
+PERF_INGEST_ISOLATED="1" \
+PERF_INGEST_REQUESTS="500" \
+PERF_INGEST_CONCURRENCY="25" \
+bun run bench:performance
+```
+
+Record the following fields for every ingest benchmark run:
+
+- Accepted events versus requested events
+- Requests per second
+- p50 and p95 request latency
+- Status-code distribution
+- Target environment, region, queue mode, and worker process count
+
+<Warning>
+  Do not compare ingest numbers across environments unless Neon branch, Tinybird workspace, Redis instance, API region, worker process count, and geolocation configuration are all comparable. Environment differences invalidate throughput comparisons.
+</Warning>
+
+## Dashboard Responsiveness
+
+Dashboard benchmarking measures HTTP response latency for selected routes. It is not a full browser user-timing benchmark, but it produces a repeatable server/app responsiveness baseline that you can run against deployed preview or production-like URLs.
+
+**Required variable:**
+
+```bash
+PERF_DASHBOARD_URL="https://app.preview.example.com" \
+bun run bench:performance
+```
+
+**Optional variables:**
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `PERF_DASHBOARD_PATHS` | `/,/login,/dashboard` | Comma-separated paths to fetch |
+| `PERF_DASHBOARD_ITERATIONS` | `3` | Number of fetches per path |
+| `PERF_DASHBOARD_COOKIE` | unset | Optional cookie header for authenticated dashboard routes |
+
+**Example with authenticated routes:**
+
+```bash
+PERF_DASHBOARD_URL="$DASHBOARD_URL" \
+PERF_DASHBOARD_PATHS="/dashboard,/dashboard/analytics,/dashboard/websites" \
+PERF_DASHBOARD_ITERATIONS="5" \
+PERF_DASHBOARD_COOKIE="$BENCHMARK_SESSION_COOKIE" \
+bun run bench:performance
+```
+
+Record: p50 and p95 latency, status-code distribution, whether the run used authenticated cookies, the target deployment URL, region, build SHA, and whether demo mode was enabled.
+
+<Tip>
+  For full browser proof, pair this HTTP benchmark with the deployed Playwright smoke:
+
+  ```bash
+  bun run e2e:release
+  ```
+</Tip>
+
+## Current Local Baselines (May 9, 2026)
+
+These numbers are reference baselines from the pre-release local environment, not release-grade evidence for production. Use them to detect local regressions only.
+
+<Tabs>
+  <Tab title="Ingest baseline">
+    Run against an isolated local API on port `59610` with 100 requests at concurrency 10:
+
+    ```bash
+    PERF_INGEST_ISOLATED="1" \
+    PERF_INGEST_API_URL="http://127.0.0.1:59610" \
+    PERF_INGEST_WEBSITE_PUBLIC_ID="web_perf_local_20260509" \
+    PERF_INGEST_REQUESTS="100" \
+    PERF_INGEST_CONCURRENCY="10" \
+    PERF_INGEST_PATH="/__metricpanel_benchmark_20260509" \
+    bun run bench:performance
+    ```
+
+    Result:
+
+    ```text
+    Ingest: 100/100 accepted, 37.3 req/s, p50 55ms, p95 2183ms, avg 267ms, min 32ms, max 2189ms, statuses {"202":100}
+    ```
+
+    Persistence check:
+
+    ```text
+    Tinybird endpoint check for the disposable website: 100 accepted synthetic events
+    ```
+  </Tab>
+  <Tab title="Dashboard baseline">
+    Run against a warmed local dashboard dev server on port `43139`, measuring public auth routes:
+
+    ```bash
+    PERF_DASHBOARD_URL="http://127.0.0.1:43139" \
+    PERF_DASHBOARD_PATHS="/login,/signup" \
+    PERF_DASHBOARD_ITERATIONS="5" \
+    bun run bench:performance
+    ```
+
+    Result:
+
+    ```text
+    Dashboard: 10/10 HTTP 2xx/3xx, p50 76ms, p95 105ms, avg 80ms, min 61ms, max 105ms, statuses {"200":10}
+    ```
+
+    This is a local regression reference for public auth routes only—not a release-grade authenticated dashboard benchmark.
+  </Tab>
+</Tabs>
+
+<Note>
+  The last ingest benchmark from the pre-v1 runtime is **no longer release evidence**. Record a new v1 baseline against an isolated Neon branch, Tinybird workspace, Redis namespace, API deployment, worker process, and disposable website public ID before using ingest numbers in launch material. The v1 baseline must use the Redis Streams and Tinybird pipeline.
+</Note>
+
+## Baseline Policy
+
+Use benchmark output as release evidence only when every isolation condition is met.
+
+<CardGroup cols={2}>
+  <Card title="Required for release-grade runs" icon="shield-check">
+    - No shared MySQL or Postgres databases
+    - No production customer website ID for ingest tests
+    - No personal session cookie committed to logs
+    - Same dashboard, API, marketing, and worker build SHA for all measurements
+    - Worker health confirmed before ingest measurements begin
+  </Card>
+  <Card title="Treat as exploratory only when" icon="flask">
+    - Any isolation condition above is not met
+    - The target uses a shared or production dataset
+    - The worker health check has not been confirmed
+    - The build SHA differs across runtimes
+  </Card>
+</CardGroup>
+
+<Warning>
+  Do not call a benchmark run release-grade unless the queue, worker, and Tinybird write path are all active and the target is isolated and disposable. Exploratory measurements are useful for local development but must not appear in launch material or release gates.
+</Warning>

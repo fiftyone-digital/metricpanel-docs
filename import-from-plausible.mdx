@@ -1,0 +1,169 @@
+---
+title: "Import Your Plausible Analytics History into MetricPanel"
+sidebarTitle: "Import from Plausible"
+description: "Validate a Plausible CSV export, preview aggregate history in the dashboard or CLI, and import daily metrics and ranking history into your MetricPanel website."
+---
+
+When you migrate from Plausible to MetricPanel, you can bring your historical aggregate data with you. MetricPanel reads Plausible's CSV export package, validates its shape, and imports daily visitor metrics, page rankings, referrer history, and more into the dashboard. Before you start, understand exactly what the importer does and does not do.
+
+## Current Product Contract
+
+MetricPanel imports **aggregate history**—not individual visitor journeys or session-level data. The importer is accurate about what it reconstructs.
+
+**What the importer does:**
+
+- Reads Plausible CSV files from the dashboard or from the CLI
+- Validates expected filenames, sections, headers, row shapes, and numeric metrics
+- Reports the export date range, section coverage, row counts, warnings, and summary metrics
+- Stores dashboard import snapshots with summary, date-range, and file metadata plus up to 1,000 normalized rows
+- Imports daily aggregate visitors, visits, pageviews, bounces, and visit duration into supported dashboard totals and timeseries
+- Imports page-history pageviews from the pages CSV into Top Pages rankings
+- Imports custom-event counts from the custom events CSV into Top Custom Events rankings
+- Imports custom-property counts from the custom props CSV into Top Custom Properties rankings
+- Imports referrer/source visit history from the sources CSV into Top Referrers rankings
+- Imports country and city visit history from the locations CSV into Top Countries and Top Locations
+- Imports device, browser, and operating-system visit history into their respective rankings
+- Queues bounded saved snapshots on the Redis-backed worker when available, with direct fallback when queueing is unavailable
+- Uploads larger CSV packages and queues background processing when the export exceeds the dashboard row cap
+
+**What the importer does not do:**
+
+- Does not reconstruct visitor-level journeys or revenue
+- Does not import Entry Pages or Exit Pages as live dashboard analytics (validation only)
+
+<Warning>
+  Do not promise customers that MetricPanel recreates Plausible's full visitor/session history from an export. This path imports aggregate daily metrics and ranking history only. Entry Pages and Exit Pages remain validation-only and do not become live dashboard analytics.
+</Warning>
+
+## Export Shape
+
+Plausible exports a ZIP containing CSV files named with the date range of the export. MetricPanel expects these filenames:
+
+```text
+imported_visitors_YYYYMMDD_YYYYMMDD.csv
+imported_pages_YYYYMMDD_YYYYMMDD.csv
+imported_sources_YYYYMMDD_YYYYMMDD.csv
+imported_locations_YYYYMMDD_YYYYMMDD.csv
+```
+
+<Tabs>
+  <Tab title="Imported sections">
+    These sections are validated **and** imported into live dashboard history:
+
+    - visitors
+    - pages
+    - sources
+    - locations
+    - browsers
+    - devices
+    - operating systems
+    - custom events
+    - custom properties
+  </Tab>
+  <Tab title="Validation-only sections">
+    These sections are recognized and validated, but are **intentionally out of scope** for live history import:
+
+    - entry pages
+    - exit pages
+  </Tab>
+</Tabs>
+
+<Note>
+  The repository includes a sample export package at `docs/plausible/export_sample` that automated tests use. Run the CLI preview against it to verify your local setup before working with real customer data.
+</Note>
+
+## Preview an Export in the Dashboard
+
+<Steps>
+  <Step title="Open the website's Imports tab">
+    Navigate to the website you want to import into. Select the **Imports** tab in the MetricPanel dashboard.
+  </Step>
+  <Step title="Select the CSV files">
+    Choose the CSV files from your Plausible export package. The dashboard reads them in the browser and shows: date range, section coverage, row counts by section, visitors/visits/pageviews/custom-event totals, and any missing-section or duplicate-section warnings.
+  </Step>
+  <Step title="Save the import snapshot">
+    If you are an owner or admin, save the validated package summary as an import snapshot. Snapshots preserve date range, section coverage, row counts, warnings, summary metrics, status/progress metadata, and up to 1,000 normalized rows.
+
+    If the preview exceeds the 1,000-row limit, the dashboard offers **Upload and queue large import** instead. That path uploads the raw CSV files and queues background processing on the worker for the same supported aggregate totals, timeseries, and ranking history.
+  </Step>
+  <Step title="Run Import history">
+    After saving, use **Import history** to apply the data. The import updates:
+    - Supported dashboard totals and timeseries (from the visitors CSV)
+    - Top Pages rankings (from the pages CSV)
+    - Top Referrers rankings (from the sources CSV)
+    - Top Countries and Top Locations (from the locations CSV)
+    - Devices, Browsers, and Operating Systems rankings
+    - Top Custom Events and Top Custom Properties rankings
+
+    When the Redis-backed worker is configured, the import is queued and the Imports table shows live progress. Otherwise, bounded snapshots fall back to direct processing.
+  </Step>
+</Steps>
+
+## Preview an Export from the CLI
+
+Use the CLI command to validate an export before touching the dashboard. The CLI validates and summarizes only—it is **not** an import job.
+
+Run the preview against a folder containing extracted CSV files:
+
+```bash
+bun run plausible:preview -- docs/plausible/export_sample
+```
+
+Run it against explicit CSV files:
+
+```bash
+bun run plausible:preview -- \
+  /path/to/imported_visitors_20260101_20260131.csv \
+  /path/to/imported_pages_20260101_20260131.csv
+```
+
+Get machine-readable output for scripted validation:
+
+```bash
+bun run plausible:preview -- /path/to/plausible-export --json
+```
+
+## Pre-Import Checklist
+
+Work through these checks before building or running any persistence job.
+
+1. The command reports the **expected date range** for your migration plan.
+2. All expected sections are present, or missing sections are intentional and documented.
+3. Summary visitors, visits, pageviews, and custom events **match Plausible closely enough** for your migration acceptance criteria.
+4. All warnings are reviewed and understood—do not dismiss duplicate-section or missing-header warnings without investigating.
+5. The export belongs to the **same website** you plan to import into in MetricPanel.
+
+<Tip>
+  Keep the original Plausible export package even after saving and importing a dashboard snapshot. The dashboard does not recreate visitor/session history from those CSVs, and the original export remains the source of record for validation-only sections and operator audit review.
+</Tip>
+
+## Current Limits
+
+<AccordionGroup>
+  <Accordion title="CLI and dashboard limits">
+    - The CLI command validates and summarizes only — it is not an import job.
+    - The dashboard preview validates selected CSV files and can save a staging snapshot with up to 1,000 normalized rows.
+    - Larger packages can upload raw CSV files and queue the same supported aggregate totals, timeseries, and ranking-history import surface on the worker.
+  </Accordion>
+
+  <Accordion title="Ranking history visibility">
+    All imported ranking history becomes visible in the dashboard **after** an owner or admin runs **Import history**:
+
+    - Daily aggregate visitor/pageview/session metrics → dashboard totals and timeseries
+    - Page-history pageviews → Top Pages rankings
+    - Custom-event counts → Top Custom Events rankings
+    - Custom-property counts → Top Custom Properties rankings
+    - Source/referrer visits → Top Referrers rankings
+    - Country visits → Top Countries rankings
+    - Country and city visits → Top Locations
+    - Device visits → Devices rankings
+    - Browser visits → Browsers rankings
+    - Operating-system visits → Operating Systems rankings
+  </Accordion>
+
+  <Accordion title="Edge cases and error behavior">
+    - **Duplicate sections** are accepted by replacing the earlier file and reporting a warning.
+    - **Unsupported filenames or unexpected headers** fail closed — MetricPanel will not silently import an unknown shape.
+    - **Entry pages and exit pages** are validated and preserved for review when present, but they are intentionally out of scope for live MetricPanel history import.
+  </Accordion>
+</AccordionGroup>

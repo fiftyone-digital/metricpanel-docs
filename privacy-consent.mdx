@@ -1,0 +1,204 @@
+---
+title: "Privacy Controls and Consent Management in MetricPanel"
+sidebarTitle: "Privacy & Consent"
+description: "Configure consent-gated tracking, cookieless mode, IP suppression, and visitor deletion to deploy MetricPanel in privacy-regulated environments."
+---
+
+MetricPanel gives you fine-grained control over what data is collected, when collection starts, and how to delete a visitor's data on request. Whether you're deploying on a marketing site under GDPR, a regulated SaaS product, or any context where explicit consent is required, MetricPanel has an option that fits.
+
+## What MetricPanel Supports
+
+<CardGroup cols={2}>
+  <Card title="Consent-Gated Tracking" icon="hand">
+    Queue all events until the visitor explicitly accepts analytics — no data leaves the browser beforehand.
+  </Card>
+  <Card title="Cookieless Mode" icon="cookie-bite">
+    Use session-scoped identifiers instead of persistent cookies to reduce browser-storage footprint.
+  </Card>
+  <Card title="IP & Geo Suppression" icon="location-dot">
+    Skip geolocation lookups and anonymize IP addresses for stricter regional privacy requirements.
+  </Card>
+  <Card title="Visitor Deletion" icon="trash">
+    Delete a specific visitor's analytics records from the dashboard or via a direct API call.
+  </Card>
+</CardGroup>
+
+## Tracker Options
+
+Choose the snippet that matches your privacy posture and paste it into your site's `<head>` or just before `</body>`.
+
+<Tabs>
+  <Tab title="Hosted Script">
+    The standard hosted script loads automatically and begins sending pageviews as soon as the page loads. Use this when you don't require explicit consent.
+
+    ```html
+    <script
+      defer
+      src="https://app.your-metricpanel-domain.com/script.js"
+      data-website-id="your-website-id"
+      data-api-url="https://api.your-metricpanel-domain.com"
+    ></script>
+    ```
+  </Tab>
+  <Tab title="Consent Mode">
+    Add the `data-consent` attribute to hold all events in a queue. Nothing is sent until you call `window.metricpanel.giveConsent()` — typically from your banner's accept handler.
+
+    ```html
+    <script
+      defer
+      src="https://app.your-metricpanel-domain.com/script.js"
+      data-website-id="your-website-id"
+      data-api-url="https://api.your-metricpanel-domain.com"
+      data-consent
+    ></script>
+
+    <script>
+      // Call this after the visitor accepts in your banner:
+      window.metricpanel.giveConsent()
+    </script>
+    ```
+  </Tab>
+  <Tab title="Cookieless + Geo-Disabled">
+    Combine `data-cookieless`, `data-disable-geo`, and `data-consent` for the strictest privacy configuration. Use this when you need session-scoped identifiers only and want to skip all geolocation lookups.
+
+    ```html
+    <script
+      defer
+      src="https://app.your-metricpanel-domain.com/script.js"
+      data-website-id="your-website-id"
+      data-api-url="https://api.your-metricpanel-domain.com"
+      data-cookieless
+      data-disable-geo
+      data-consent
+    ></script>
+    ```
+  </Tab>
+</Tabs>
+
+## SDK Example
+
+If you use the `@metricpanel/sdk` package, the same privacy controls are available as constructor options. The SDK also gives you `revokeConsent()` and `hasConsent()` helpers that the hosted script does not expose.
+
+```ts
+import MetricPanelSDK from '@metricpanel/sdk'
+
+const metricpanel = new MetricPanelSDK({
+  websiteId: 'your-website-id',
+  waitForConsent: true,      // hold events until consent is granted
+  cookieless: true,          // use session-scoped identifiers only
+  anonymizeIP: true,         // suppress IP and geolocation lookups
+  respectDoNotTrack: true,   // honour the browser's DNT header
+})
+
+// Call after the visitor accepts in your consent banner:
+await metricpanel.grantConsent()
+
+// Call if the visitor later withdraws consent:
+metricpanel.revokeConsent()
+
+// Check the current consent state (e.g. to decide whether to show the banner):
+const consented = metricpanel.hasConsent()
+```
+
+<Tip>
+  Use the SDK path whenever your consent policy requires explicit revoke support or you need to check consent state programmatically. The hosted script's `window.metricpanel.giveConsent()` is the simpler option for static sites where your banner owns all persistence.
+</Tip>
+
+## Consent Banner Integration Pattern
+
+Most consent management integrations follow the same four-step pattern regardless of whether you use a custom banner or a third-party CMP.
+
+<Steps>
+  <Step title="Load MetricPanel in consent mode">
+    Add `data-consent` to the hosted script tag, or set `waitForConsent: true` in the SDK constructor. This ensures no events are sent before the visitor has made a choice.
+  </Step>
+  <Step title="Show your consent banner">
+    Display your custom banner or let your CMP surface the analytics consent prompt. MetricPanel does not render a banner for you — your UI owns that interaction.
+  </Step>
+  <Step title="Grant consent on acceptance">
+    When the visitor accepts, call `window.metricpanel.giveConsent()` (hosted script) or `await metricpanel.grantConsent()` (SDK). Queued events flush immediately.
+
+    ```html
+    <script>
+      function acceptAnalytics() {
+        window.metricpanel.giveConsent()
+        localStorage.setItem('analytics_consent', 'granted')
+      }
+
+      function declineAnalytics() {
+        localStorage.removeItem('analytics_consent')
+      }
+    </script>
+    ```
+  </Step>
+  <Step title="Handle revocation">
+    If the visitor later withdraws consent, clear your stored banner choice. With the hosted script, reload the page in a denied state. With the SDK, call `metricpanel.revokeConsent()` to clear local consent state and stored identifiers immediately.
+  </Step>
+</Steps>
+
+<Note>
+  The hosted script exposes `window.metricpanel.giveConsent()` but does **not** include `revokeConsent()` or `hasConsent()`. Your banner or CMP owns persistence for the hosted-script path. Use the SDK if you need first-class revoke and status management.
+</Note>
+
+For complete, copy-paste banner implementations in plain HTML, React/Next.js, and third-party CMP bridge patterns, see [Consent Banner Examples](/consent-banner-examples).
+
+## Visitor Deletion
+
+Delete a specific visitor's analytics records from **Website Settings → Privacy** in the dashboard, or call the API directly. The request can target either a direct visitor ID or a customer email that is resolvable from stored revenue metadata.
+
+**What gets deleted:** matching visitor, session, event, revenue, and goal-completion records for that website only.
+
+<CodeGroup>
+  ```bash Delete by visitor ID
+  curl -X POST https://api.your-metricpanel-domain.com/api/privacy/delete-visitor \
+    -H "Content-Type: application/json" \
+    -H "Cookie: your-auth-session" \
+    -d '{
+      "websiteId": "website_internal_id",
+      "visitorId": "vst_123",
+      "reason": "GDPR deletion request #42"
+    }'
+  ```
+
+  ```bash Delete by email
+  curl -X POST https://api.your-metricpanel-domain.com/api/privacy/delete-visitor \
+    -H "Content-Type: application/json" \
+    -H "Cookie: your-auth-session" \
+    -d '{
+      "websiteId": "website_internal_id",
+      "email": "visitor@example.com",
+      "reason": "GDPR deletion request #43"
+    }'
+  ```
+</CodeGroup>
+
+The response includes deletion counts and a timestamp. Save that response with your support ticket or compliance record.
+
+<Warning>
+  Direct API calls must reach the API runtime that owns `/api/privacy/delete-visitor`, or a first-party `/api/*` proxy that forwards to the API app. A dashboard-only host does **not** handle privacy API routes on split deployments.
+</Warning>
+
+## Current Limits
+
+<Note>
+  Keep these limitations in mind when communicating deletion capabilities to visitors or compliance teams:
+
+  - **Email-based deletion** only works when the email can be resolved from stored revenue-linked metadata. Visitors who only generated pageviews or custom events without a revenue record cannot be looked up by email alone.
+  - **Pageview and event analytics** do not persist arbitrary visitor emails for later lookup.
+  - **Verification email resend** is only self-service when outbound email is configured in your deployment.
+  - **Deletion is website-scoped** — it does not automatically remove the same visitor across every website in your workspace.
+</Note>
+
+For retention-window settings, CSV export options, and operator workflows for handling formal access requests, see [Data Retention & Portability](/data-retention-portability).
+
+## Deployment Checklist
+
+<Accordion title="Review before going live">
+  - [ ] Enable `data-consent` or `waitForConsent: true` if your site requires explicit opt-in before collecting analytics.
+  - [ ] Enable `data-cookieless` when session-scoped identifiers are required instead of persistent cookies.
+  - [ ] Enable `data-disable-geo` or set `anonymizeIP: true` when you do not want geolocation lookups.
+  - [ ] Decide whether the hosted script is sufficient or whether your consent policy requires the SDK's `revokeConsent()` and `hasConsent()` APIs.
+  - [ ] Document the chosen tracking behavior in your privacy policy and banner copy.
+  - [ ] Confirm your support team knows the website-scoped deletion workflow before launch.
+  - [ ] Set the website retention window to match your internal data-handling policy (see Data Retention & Portability).
+</Accordion>

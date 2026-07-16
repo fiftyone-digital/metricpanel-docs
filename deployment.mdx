@@ -1,0 +1,176 @@
+---
+title: "Deploying MetricPanel to Production Infrastructure"
+sidebarTitle: "Deployment"
+description: "Configure environment variables, set startup order, validate health checks, and follow the release gate before routing live traffic to your MetricPanel deployment."
+---
+
+MetricPanel v1 is a split runtime made up of four app processes and three backing services. Each process has its own build artifact, its own environment variables, and its own deployment target. Getting the startup order and environment right is what separates a healthy launch from a silent failure.
+
+<Warning>
+  MetricPanel v1 is a **split runtime**. Do not deploy the dashboard, marketing site, API, and worker as a single generic Next.js app. Each app in `apps/` must be deployed to its own target with its own configuration.
+</Warning>
+
+## Runtime Topology
+
+Each component below runs independently and must be deployed to its own target.
+
+| Component | Location | Notes |
+|---|---|---|
+| `apps/dashboard` | Vercel | Authenticated product UI |
+| `apps/marketing` | Vercel | Public website and docs |
+| `apps/api` | Railway | Ingestion, webhooks, analytics endpoints, SSE |
+| `apps/worker` | Railway (long-running process) | Redis Streams consumer |
+| Neon Postgres | Managed | Product, auth, and billing state |
+| Tinybird | Managed | Analytics facts and analytical endpoints |
+| Redis | Managed | Streams queue, realtime live state, worker heartbeat |
+| Cloudflare | DNS / proxy | TLS, WAF, first-party tracking proxy |
+
+<Note>
+  The playground is a local verification tool, not a required production runtime. You do not need to deploy it.
+</Note>
+
+## Required Environment Variables
+
+Each app has its own `.env.example` file. Start there, then fill in the values below for every production runtime.
+
+<Tabs>
+  <Tab title="Core (all runtimes)">
+    ```env
+    DATABASE_URL="postgres://user:password@ep-example-pooler.region.aws.neon.tech/metricpanel?sslmode=require"
+    BETTER_AUTH_SECRET="your-secret-key-min-32-characters"
+    BETTER_AUTH_URL="https://app.example.com"
+    BETTER_AUTH_TRUSTED_ORIGINS="https://app.example.com,https://api.example.com"
+    BETTER_AUTH_COOKIE_DOMAIN=".example.com"
+    ```
+  </Tab>
+  <Tab title="URLs">
+    ```env
+    NEXT_PUBLIC_APP_URL="https://app.example.com"
+    DASHBOARD_URL="https://app.example.com"
+    NEXT_PUBLIC_SITE_URL="https://www.example.com"
+    SITE_URL="https://www.example.com"
+    NEXT_PUBLIC_API_URL="https://api.example.com"
+    API_URL="https://api.example.com"
+    ```
+  </Tab>
+  <Tab title="Services">
+    ```env
+    TINYBIRD_API_URL="https://api.tinybird.co"
+    TINYBIRD_TOKEN="your-tinybird-token"
+    REDIS_URL="rediss://default:your-redis-token@your-redis-host:6379"
+    CRON_SECRET="replace-with-a-random-secret"
+    ```
+  </Tab>
+</Tabs>
+
+Optional integrations include Stripe, Resend, OAuth providers (Google, GitHub, etc.), Mapbox, MaxMind GeoIP, Sentry, PostHog, OpenAI, and Anthropic. Refer to each app's `.env.example` for the full variable list.
+
+## Build Commands
+
+Build all four apps before deploying. Use `--frozen-lockfile` in CI to guarantee reproducible installs.
+
+```bash
+bun install --frozen-lockfile
+bun run --cwd apps/dashboard build
+bun run --cwd apps/marketing build
+bun run --cwd apps/api build
+bun run --cwd apps/worker build
+```
+
+Start the worker as a persistent process, separate from the web-request runtimes:
+
+```bash
+bun run --cwd apps/worker start
+```
+
+## Startup Order
+
+Follow this sequence exactly. Skipping steps or reversing the order will cause health-check failures, missing consumer groups, or unauthenticated dashboard requests.
+
+<Steps>
+  <Step title="Apply Neon Migrations">
+    Run Drizzle migrations against the production Neon branch. Confirm all migrations succeed before proceeding.
+  </Step>
+  <Step title="Deploy Tinybird Resources">
+    Deploy Tinybird data sources and pipes. Verify that analytical endpoints return data for a test website.
+  </Step>
+  <Step title="Provision Redis">
+    Verify the Redis Stream can create the `metricpanel-workers` consumer group and that enqueue, consume, and ack work end-to-end.
+  </Step>
+  <Step title="Set All Environment Variables">
+    Configure dashboard, marketing, API, and worker environment variables in each deployment target's settings panel before deploying code.
+  </Step>
+  <Step title="Deploy API/Realtime First">
+    Deploy `apps/api` to Railway first. It must be reachable before dashboard requests can proxy analytics queries.
+  </Step>
+  <Step title="Deploy Dashboard and Marketing">
+    Deploy `apps/dashboard` and `apps/marketing` to Vercel once the API is healthy.
+  </Step>
+  <Step title="Start the Worker">
+    Start or restart the worker process on Railway. Confirm it writes a heartbeat key to Redis within 30 seconds.
+  </Step>
+  <Step title="Run Hosted Smoke Checks">
+    Execute the full hosted smoke suite covering signup, login, event ingestion, realtime SSE, billing, and team flows.
+  </Step>
+</Steps>
+
+## Health Checks
+
+Check the worker's liveness with the cron secret before routing production traffic.
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  "$API_URL/api/health/worker"
+```
+
+Check queue status and optionally trigger a controlled processing batch:
+
+```bash
+# Check current queue depth
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  "$API_URL/api/process-events"
+
+# Process a controlled batch of 100 events
+curl -X POST -H "Authorization: Bearer $CRON_SECRET" \
+  "$API_URL/api/process-events?batch=100"
+```
+
+## Release Gate Checklist
+
+Run every item in this checklist before marking a release as production-ready.
+
+<CardGroup cols={2}>
+  <Card title="Automated Checks" icon="circle-check">
+    - `bun run test`
+    - `bun run lint:check`
+    - `bun run typecheck`
+    - Deploy-target builds for all four apps
+  </Card>
+  <Card title="Data Layer Checks" icon="database">
+    - Neon migration applied successfully
+    - Tinybird deploy completed
+    - Redis enqueue / consume / ack / dead-letter smoke passed
+  </Card>
+  <Card title="Runtime Smoke" icon="server">
+    - Railway API, worker, and realtime SSE smoke passed
+    - Vercel dashboard and marketing smoke passed
+    - Cloudflare first-party tracking proxy smoke passed
+  </Card>
+  <Card title="Billing Smoke" icon="credit-card">
+    - Stripe checkout, portal, webhook, cancellation, and billing-limit flows verified
+  </Card>
+</CardGroup>
+
+<Warning>
+  Automated tests must **not** run against shared Postgres/MySQL or hosted production services. Use isolated SQLite/PGLite or mocked services for all local and CI test runs.
+</Warning>
+
+## Rollback Guidance
+
+Roll back in the order that most quickly stops customer impact.
+
+- **Ingestion or webhook failures** — roll back the API first.
+- **Processing regressions** — roll back the worker.
+- **User-facing page regressions** — roll back dashboard or marketing.
+
+After any rollback, re-run `GET /api/health/worker` and check Redis queue depth to confirm the system has stabilized before re-enabling traffic.

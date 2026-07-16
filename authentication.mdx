@@ -1,0 +1,100 @@
+---
+title: "Sign In, 2FA, and Account Security in MetricPanel"
+sidebarTitle: "Authentication"
+description: "Sign in to your MetricPanel account, reset your password, verify your email, and protect your account with two-factor authentication."
+---
+
+MetricPanel's dashboard supports email and password sign-in, optional social sign-in via Google or GitHub, email verification, password reset, and two-factor authentication (2FA). This page walks you through each flow so you can access your account and keep it secure.
+
+## Sign Up and Sign In
+
+Navigate to the MetricPanel dashboard to get started.
+
+- **Sign up** — go to `/signup` and enter your email address and a password. You'll receive a verification email with a six-digit code to confirm your address.
+- **Sign in** — go to `/login` and enter your email and password.
+- **Social sign-in** — if your MetricPanel environment has Google or GitHub sign-in enabled, you'll see those buttons on the sign-in and sign-up pages. Click the provider button and authorize the connection to sign in without a password.
+
+<Note>
+  Social sign-in buttons only appear when the corresponding provider is configured for your MetricPanel deployment. If you don't see a Google or GitHub button, your environment uses email/password sign-in only.
+</Note>
+
+## Verify Your Email
+
+After signing up with an email and password, MetricPanel sends a six-digit verification code to your inbox.
+
+<Steps>
+  <Step title="Check your inbox">
+    Look for an email from MetricPanel containing a six-digit verification code. The code expires after **15 minutes**.
+  </Step>
+  <Step title="Enter the code">
+    Go to `/verify-email` and enter the six-digit code. You have **three attempts** before the code is invalidated.
+  </Step>
+  <Step title="Resend the code if needed">
+    If the code expired or didn't arrive, use the resend link on the verification page to request a new code.
+  </Step>
+</Steps>
+
+<Warning>
+  If the verification page shows a message that email delivery is not available in your environment, resending will not work. Contact your administrator or the operator of your MetricPanel instance for assistance.
+</Warning>
+
+The verification page clearly distinguishes between an **invalid or expired code**, a **working resend path**, and an environment where **email delivery is not configured**. If you see the last message, don't keep retrying — reach out to your operator.
+
+## Reset Your Password
+
+If you've forgotten your password, use the forgot-password flow to set a new one.
+
+<Steps>
+  <Step title="Go to the forgot-password page">
+    Click **Forgot password?** on the sign-in page, or navigate directly to `/forgot-password`.
+  </Step>
+  <Step title="Enter your email address">
+    Type the email address associated with your MetricPanel account and submit the form.
+  </Step>
+  <Step title="Check your inbox for the reset link">
+    MetricPanel sends a password-reset link to your email address. Open the email and click the link.
+  </Step>
+  <Step title="Set a new password">
+    On the `/reset-password` page, enter and confirm your new password, then submit.
+  </Step>
+  <Step title="Sign in with your new password">
+    Return to `/login` and sign in with your updated credentials.
+  </Step>
+</Steps>
+
+<Note>
+  The password-reset email is only sent when outbound email delivery is configured for your MetricPanel deployment. If the forgot-password page shows a message that email delivery is unavailable, contact your administrator — the form will not silently pretend to send an email it cannot deliver.
+</Note>
+
+## Set Up Two-Factor Authentication
+
+Protect your account with a time-based one-time password (TOTP) using an authenticator app.
+
+<Steps>
+  <Step title="Open the two-factor setup page">
+    Navigate to `/two-factor` from your account settings.
+  </Step>
+  <Step title="Scan the QR code">
+    Open your authenticator app (such as Google Authenticator, Authy, or 1Password) and scan the QR code displayed on screen. Alternatively, enter the setup key manually if your app supports it.
+  </Step>
+  <Step title="Enter the verification code">
+    Type the six-digit code currently shown in your authenticator app and confirm the setup. This verifies that your app is correctly synced.
+  </Step>
+  <Step title="Save your backup codes">
+    MetricPanel displays one-time backup codes after 2FA is enabled. Save these somewhere secure — you'll need them if you lose access to your authenticator app.
+  </Step>
+</Steps>
+
+<Tip>
+  Use a cloud-backed authenticator app so you don't lose access if you change devices. Store backup codes in a password manager rather than a plain text file.
+</Tip>
+
+## If Email Delivery Is Unavailable
+
+Some MetricPanel deployments are configured without outbound email. In that case:
+
+- The **password-reset flow** will display a message explaining that the reset email cannot be sent, rather than silently failing.
+- The **email verification resend** option will not be available — the page will tell you clearly that email delivery is not configured.
+- **Team invitations** sent to new members may not arrive — confirm directly with invitees rather than assuming delivery.
+
+If you encounter any of these messages, contact your MetricPanel administrator or the operator of your deployment for assistance accessing your account.

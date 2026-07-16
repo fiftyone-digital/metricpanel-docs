@@ -1,0 +1,78 @@
+---
+title: "Troubleshooting Your MetricPanel Deployment"
+sidebarTitle: "Troubleshooting"
+description: "Diagnose events returning errors, missing dashboard data, empty realtime panels, offline workers, and billing discrepancies without guessing which runtime owns the failure."
+---
+
+When something goes wrong in a MetricPanel deployment, the split-runtime design means the failure is almost always isolated to one specific layer. Use the sections below to identify which runtime, service, or configuration owns the problem before you start making changes.
+
+<AccordionGroup>
+  <Accordion title="Events Return Errors">
+    MetricPanel's ingest endpoint returns a small set of well-defined status codes. Match the code you're seeing to its cause before investigating further.
+
+    | Status Code | Meaning |
+    |---|---|
+    | `202` | Redis Stream enqueue succeeded — the event is queued for processing. |
+    | `400` | Payload validation failed — the event body is malformed or missing required fields. |
+    | `401` / `403` | Website token, HMAC, domain, or access check failed — the request is not authorized for this website. |
+    | `503` | Queue or storage is unavailable — the Redis Stream enqueue failed. |
+
+    <Warning>
+      Production should **never** fall back to direct Tinybird processing when Redis is unavailable. A `503` is the correct response when the queue is down. Silently writing events directly to Tinybird bypasses the worker pipeline and breaks queue-lag accounting.
+    </Warning>
+
+    **Steps to resolve:**
+
+    1. Check API runtime logs for the specific validation or auth error message.
+    2. Confirm Redis is reachable from the API runtime and `REDIS_URL` is correctly set.
+    3. For `401`/`403` errors, verify the website token, HMAC secret, and allowed domain list in Postgres match what the tracker is sending.
+  </Accordion>
+
+  <Accordion title="Dashboard Shows No Data">
+    An empty dashboard usually means a permissions, connectivity, or Tinybird configuration issue—not missing events.
+
+    **Check in this order:**
+
+    1. **Website membership** — confirm the authenticated user has a membership record for the website they're viewing. Better Auth memberships live in Postgres.
+    2. **API origin configuration** — confirm the dashboard's `NEXT_PUBLIC_API_URL` points to the correct API runtime and that requests include credentials (cookies or tokens).
+    3. **Tinybird endpoints** — query the Tinybird analytical endpoint directly with the same website ID, date range, and filter parameters the dashboard uses. If Tinybird returns empty results, the events may not have been processed yet or the website ID is mismatched.
+    4. **Imported aggregate rows** — if you imported data from Plausible or another source, confirm imported rows are marked as `imported` in Tinybird so the dashboard renders them correctly when visitor/session identity is unavailable.
+  </Accordion>
+
+  <Accordion title="Realtime Is Empty">
+    Realtime data flows through a chain of three components—SSE route, Redis live-state keys, and the worker. A break anywhere in the chain produces an empty realtime panel.
+
+    **Check in this order:**
+
+    1. **SSE session auth** — confirm the SSE route at `GET /api/realtime` can read the Better Auth session from the incoming request. A missing or expired session produces an empty stream.
+    2. **Redis live-state keys** — check whether active visitor, active page, and recent event keys exist in Redis for the website. If they're missing, the worker may not have processed any events yet.
+    3. **Worker updates** — confirm the worker is running and actively writing active visitor, active page, and recent event keys to Redis after each batch.
+    4. **Shared Redis instance** — confirm the API and worker processes are pointed at the **same** Redis instance and using the same key namespace. A misconfigured `REDIS_URL` on either side will cause the SSE route to read stale or empty state.
+  </Accordion>
+
+  <Accordion title="Worker Is Offline">
+    A stopped or misconfigured worker means events accumulate in the Redis Stream but are never written to Tinybird. Queue lag grows and realtime data goes stale.
+
+    **Steps to resolve:**
+
+    1. Call the health endpoint with your cron secret and confirm it returns a healthy response:
+       ```bash
+       curl -H "Authorization: Bearer $CRON_SECRET" \
+         "$API_URL/api/health/worker"
+       ```
+    2. Verify the worker process has all four required environment variables: `DATABASE_URL`, `TINYBIRD_API_URL`, `TINYBIRD_TOKEN`, and `REDIS_URL`.
+    3. Check Redis Stream pending counts and the dead-letter stream (`metricpanel:events:dead`) for events that have exhausted retries.
+    4. Restart the worker after any deploy or environment variable change—the process does not pick up new env vars without a restart.
+  </Accordion>
+
+  <Accordion title="Billing Looks Wrong">
+    Billing issues are almost always a mismatch between Stripe configuration and MetricPanel's environment variables, or a webhook routing error.
+
+    **Check in this order:**
+
+    1. **Stripe price IDs** — confirm the price IDs in your environment variables match the exact IDs in your Stripe dashboard for each tier, bucket, and billing interval.
+    2. **Webhook endpoint** — confirm the Stripe webhook endpoint points to the **API runtime** (`apps/api`), not the dashboard runtime (`apps/dashboard`). The dashboard does not handle Stripe webhooks.
+    3. **Plan resolution** — confirm that when Stripe sends a subscription update, the API can resolve the active plan from the incoming price IDs. A missing price ID mapping silently fails to update the billing profile.
+    4. **Partial profile updates** — confirm that partial billing profile updates (e.g., updating only the subscription tier) do not overwrite existing subscription fields like the billing interval or bucket size.
+  </Accordion>
+</AccordionGroup>

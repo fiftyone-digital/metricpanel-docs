@@ -1,0 +1,311 @@
+---
+title: "Tracking Script Configuration for MetricPanel"
+sidebarTitle: "Tracking Script"
+description: "Install and configure the MetricPanel hosted tracking script with the exact attributes, proxy patterns, and codeless goals you need for production."
+---
+
+The MetricPanel hosted tracking script gives you automatic pageviews, SPA route detection, outbound-link capture, and a small global API — all from a single `<script>` tag. Use this guide to install the script correctly, understand every supported attribute, and extend tracking with codeless goals, form events, and scroll milestones without touching your application code.
+
+## When to use the hosted script vs the SDK
+
+Use the hosted script when you want MetricPanel to handle initialization automatically. It is the right choice when you need:
+
+- automatic pageviews on the initial load and on every SPA route change
+- outbound-link and file-download capture with zero additional code
+- a lightweight global API (`window.metricpanel`) for occasional manual calls
+
+If your application needs full control over consent state, manual pageview timing, or tighter bundle management, use [`@metricpanel/sdk`](/sdk) instead.
+
+## Base install
+
+Place the snippet inside `<head>` or before `</body>`. The `defer` attribute prevents the script from blocking page rendering.
+
+```html
+<script
+  defer
+  src="https://app.your-metricpanel-domain.com/script.js"
+  data-website-id="your-website-id"
+  data-api-url="https://api.your-metricpanel-domain.com"
+></script>
+```
+
+`data-website-id` is required. The script will not initialize without it. The built script is minified and measured at approximately 11,802 bytes raw (4,399 bytes gzipped).
+
+## Supported script attributes
+
+| Attribute | Required | What it does |
+|---|---|---|
+| `data-website-id` | Yes | Public website ID that receives the events |
+| `data-api-url` | No | Overrides the ingest base URL when `/api/events` should go somewhere other than the script origin |
+| `data-allow-localhost` | No | Allows tracking on `localhost` and other local test hosts |
+| `data-debug` | No | Logs tracker behavior to the browser console |
+| `data-cookieless` | No | Uses session-scoped storage instead of persistent cookies |
+| `data-consent` | No | Queues events until `window.metricpanel.giveConsent()` is called |
+| `data-disable-geo` | No | Skips IP-based geolocation lookup |
+| `data-track-scroll` | No | Sends `scroll` events at 25, 50, 75, 90, and 100 percent depth |
+| `data-track-hash` | No | Treats URL hashes as route state for hash-router apps |
+| `data-cookie-domain` | No | Writes visitor/session cookies on a parent domain such as `.example.com` for sibling subdomains |
+| `data-link-domains` | No | Appends MetricPanel linker parameters to configured cross-domain links |
+
+## Configuration examples
+
+Choose the configuration pattern that matches your deployment.
+
+<Tabs>
+  <Tab title="Consent-gated">
+    Queue all events until the visitor accepts your consent banner, then flush the queue by calling `giveConsent()`.
+
+    ```html
+    <script
+      defer
+      src="https://app.your-metricpanel-domain.com/script.js"
+      data-website-id="your-website-id"
+      data-api-url="https://api.your-metricpanel-domain.com"
+      data-consent
+    ></script>
+
+    <script>
+      // Call this after the visitor accepts your consent banner
+      window.metricpanel.giveConsent()
+    </script>
+    ```
+  </Tab>
+  <Tab title="Privacy-leaning">
+    Combine cookieless storage, geo-lookup suppression, and consent gating for the most privacy-conservative setup.
+
+    ```html
+    <script
+      defer
+      src="https://app.your-metricpanel-domain.com/script.js"
+      data-website-id="your-website-id"
+      data-api-url="https://api.your-metricpanel-domain.com"
+      data-cookieless
+      data-disable-geo
+      data-consent
+    ></script>
+    ```
+  </Tab>
+  <Tab title="First-party proxy">
+    Use this pattern when you proxy the hosted script through one first-party origin but keep MetricPanel event ingestion on a separate origin.
+
+    ```html
+    <script
+      defer
+      src="https://analytics.example.com/script.js"
+      data-website-id="your-website-id"
+      data-api-url="https://api.example.com"
+    ></script>
+    ```
+  </Tab>
+  <Tab title="Same-origin proxy">
+    If your proxy serves both `/script.js` and `/api/events` from the same origin, you can omit `data-api-url` entirely.
+
+    ```html
+    <script
+      defer
+      src="https://analytics.example.com/script.js"
+      data-website-id="your-website-id"
+    ></script>
+    ```
+  </Tab>
+  <Tab title="Shared subdomains">
+    Share visitor and session cookies across sibling subdomains by writing them to the parent domain.
+
+    ```html
+    <script
+      defer
+      src="https://analytics.example.com/script.js"
+      data-website-id="your-website-id"
+      data-cookie-domain=".example.com"
+    ></script>
+    ```
+
+    <Warning>
+      Use `data-cookie-domain` only for domains you control. Browsers silently ignore invalid cookie domains. MetricPanel defaults to host-scoped cookies.
+    </Warning>
+  </Tab>
+  <Tab title="Cross-domain linker">
+    Preserve visitor and session IDs across separate domains by appending linker parameters to outbound links.
+
+    ```html
+    <script
+      defer
+      src="https://analytics.example.com/script.js"
+      data-website-id="your-website-id"
+      data-link-domains="checkout.example.com, app.example.org"
+    ></script>
+    ```
+
+    When a visitor clicks a link to a configured domain, the script appends `_mtrk_vid` and `_mtrk_sid` query parameters to the URL. The destination page must also run the hosted script with `data-link-domains` configured to accept the incoming linker IDs. `data-allowed-hostnames` is accepted as a DataFast-style alias.
+  </Tab>
+</Tabs>
+
+## Runtime-aware install rules
+
+Apply these rules to decide which attributes your snippet needs in production:
+
+- If your MetricPanel dashboard and API are separate deployments, keep `data-api-url` so the script posts to the API runtime rather than the script host.
+- If you proxy both `/script.js` and `/api/events` through the same first-party origin, you can omit `data-api-url`.
+- If you proxy only `/script.js`, point `data-api-url` at the origin that actually serves `/api/events`.
+- The hosted script always posts to `${data-api-url || script-origin}/api/events`.
+
+<Note>
+  Remove any `data-domain` attribute from copied snippets — MetricPanel does not read it. Website selection is handled entirely through `data-website-id`.
+</Note>
+
+## What the hosted script does automatically
+
+After the script loads, it handles the following without any additional code:
+
+- Sends one pageview on initial load
+- Sends pageviews on `pushState`, `replaceState`, and browser history navigation
+- Sends pageviews on `hashchange` when `data-track-hash` or `data-track-hash-routes` is enabled
+- Deduplicates back-to-back identical pageviews within a short window
+- Captures `utm_source` as the traffic source, with `ref`, `source`, and `via` as fallback aliases for DataFast-style campaign links
+- Sends `outbound_link` events for clicks to other hostnames
+- Sends `file_download` events for clicks to downloadable links
+- Sends opt-in `form_submit` events for forms marked with `data-mtrk-form` or `data-fast-form`
+- Sends goal events for elements with `data-mtrk-goal` or `data-fast-goal`, including optional value and metadata attributes
+- Sends opt-in scroll goals for elements marked with `data-mtrk-scroll` or `data-fast-scroll`
+- Sends opt-in `not_found` events for 404 templates marked with `data-mtrk-404` or `data-fast-404`
+- Shares identity across sibling subdomains with `data-cookie-domain`
+- Preserves visitor and session IDs across explicitly configured cross-domain links with `data-link-domains`
+
+## Global browser API
+
+After the script loads, call any of these methods on `window.metricpanel`:
+
+| Method | Purpose |
+|---|---|
+| `pageview()` | Send a manual pageview |
+| `track(name, properties?)` | Send a custom event |
+| `goal(name, properties?)` | Send a goal event |
+| `revenue(data)` | Send a revenue event |
+| `getVisitorId()` | Return the current visitor ID |
+| `getSessionId()` | Return the current session ID |
+| `getStripeMetadata()` | Return attribution metadata for Stripe checkout |
+| `giveConsent()` | Flush the queued events when using `data-consent` |
+
+## Multi-domain and subdomain behavior
+
+MetricPanel lets you reuse the same `data-website-id` on multiple hostnames and offers opt-in identity continuity for domains you control.
+
+**What works today:**
+
+- Multiple domains or subdomains can send events into the same website when they install the same public website ID
+- First-party proxying works as long as the browser can reach the origin that serves `/script.js` and the origin that serves `/api/events`
+- Token-authenticated custom ingestion can restrict allowed request domains, supporting exact hostnames and subdomains
+- Sibling subdomains can share visitor/session cookies when `data-cookie-domain` is set to a parent domain such as `.example.com`
+- Separate domains can preserve visitor/session IDs when both sides enable the cross-domain linker with `data-link-domains`
+
+**What does not happen automatically:**
+
+- Host-scoped cookies remain the default
+- The hosted script decorates only domains listed in `data-link-domains` or `data-allowed-hostnames`, not every external link
+- MetricPanel validates incoming linker IDs only for pages whose install has opted into cross-domain linking
+
+## Source aliases
+
+MetricPanel stores the standard `utm_source` value as the analytics source. If `utm_source` is absent, the tracker falls back through `ref`, `source`, and `via`, so existing DataFast-style links such as `?ref=twitter` or `?via=partner` keep useful attribution during a migration.
+
+The priority order for the normalized source field is:
+
+1. `utm_source`
+2. `ref`
+3. `source`
+4. `via`
+
+The original query parameters are still sent in the event's `query` payload.
+
+## Hash-router apps
+
+By default, MetricPanel ignores URL hashes when deduplicating pageviews and recording paths. This prevents normal anchor links such as `#pricing` from generating new pageviews.
+
+If your app routes through hashes, enable hash-route tracking with `data-track-hash`:
+
+```html
+<script
+  defer
+  src="https://app.your-metricpanel-domain.com/script.js"
+  data-website-id="your-website-id"
+  data-api-url="https://api.your-metricpanel-domain.com"
+  data-track-hash
+></script>
+```
+
+With `data-track-hash` enabled, `/#/pricing` and `/#/checkout` are stored as distinct page paths and hash changes trigger pageviews. `data-track-hash-routes` is accepted as an equivalent alias.
+
+## Codeless goals
+
+Track conversions without writing JavaScript by adding data attributes to any HTML element. MetricPanel supports its native attributes and DataFast-compatible aliases:
+
+<CodeGroup>
+```html Native attributes
+<button
+  data-mtrk-goal="signup_completed"
+  data-mtrk-goal-plan-type="pro"
+  data-mtrk-value="25"
+>
+  Start trial
+</button>
+```
+
+```html DataFast aliases
+<button
+  data-fast-goal="initiate_checkout"
+  data-fast-goal-price="49"
+  data-fast-goal-plan-type="pro"
+>
+  Buy now
+</button>
+```
+</CodeGroup>
+
+Both examples send a `goal` event whose name is the attribute value (`signup_completed` or `initiate_checkout`). Metadata attributes are converted from kebab-case to snake_case, so `data-fast-goal-plan-type="pro"` becomes `plan_type: "pro"`. The tracker keeps the first 10 goal properties and truncates attribute values to 255 characters.
+
+## File downloads and forms
+
+MetricPanel automatically sends a `file_download` event when a visitor clicks a link with a common downloadable extension (`.pdf`, `.csv`, `.zip`, `.docx`, `.xlsx`, `.mp4`, `.dmg`, and others). Links with a `download` attribute are also tracked even when the URL does not include a recognized extension.
+
+Form tracking is opt-in. Add `data-mtrk-form` or `data-fast-form` to the form element:
+
+```html
+<form
+  data-mtrk-form="contact_sales"
+  data-mtrk-form-plan-type="enterprise"
+  action="/contact"
+  method="post"
+>
+  <button type="submit">Send</button>
+</form>
+```
+
+This sends a `form_submit` event with `form`, `method`, optional `action`, and any `data-mtrk-form-*` or `data-fast-form-*` metadata. Metadata keys are converted from kebab-case to snake_case and capped at the same 10-property limit as other codeless events.
+
+## Element scroll goals
+
+Use `data-mtrk-scroll` or `data-fast-scroll` to record a conversion goal the first time a specific page section becomes visible:
+
+```html
+<section
+  data-mtrk-scroll="viewed_pricing"
+  data-mtrk-scroll-threshold="0.75"
+  data-mtrk-scroll-section-name="pricing"
+>
+  ...
+</section>
+```
+
+The tracker uses `IntersectionObserver` and fires the goal once per element. Thresholds are decimals from `0` to `1`; the default is `0.5`. Add `data-mtrk-scroll-delay` or `data-fast-scroll-delay` (in milliseconds) when the element must stay visible for a minimum duration before counting. Metadata attributes such as `data-fast-scroll-section-name` are converted to snake_case and included in the goal properties.
+
+## 404 pages
+
+Browser JavaScript cannot reliably read the HTTP status code for the current document, so MetricPanel does not infer 404 pages from URLs or titles. Add a data attribute marker to your 404 template to trigger a missing-page event:
+
+```html
+<main data-mtrk-404="missing_route" data-mtrk-404-template="next_not_found">
+  ...
+</main>
+```
+
+The hosted script still sends the normal pageview for the 404 URL, then sends a `not_found` custom event with the current `path`, current `title`, the optional marker value, and any `data-mtrk-404-*` or `data-fast-404-*` metadata. Metadata keys are converted from kebab-case to snake_case.

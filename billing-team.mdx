@@ -1,0 +1,95 @@
+---
+title: "Manage Billing and Team Access in MetricPanel"
+sidebarTitle: "Billing & Team"
+description: "Understand organization vs website scope, invite teammates with the right role, review your plan and usage, and keep access clean after team changes."
+---
+
+MetricPanel separates organization-level ownership and billing from website-level analytics access. Understanding both layers helps you quickly resolve situations where a teammate can't see a website, shouldn't be able to change its settings, or needs to be removed after leaving the team.
+
+## Organization vs Website Scope
+
+MetricPanel uses two distinct scopes:
+
+- **Organization** — owns websites, your subscription, usage allowance, and organization settings. Billing lives here.
+- **Website** — has its own member list, analytics data, installation settings, alerts, API credentials, revenue connections, and imports.
+
+<Note>
+  Don't share one MetricPanel account between multiple teammates. Invite each person individually so access can be reviewed and removed independently when people change roles or leave.
+</Note>
+
+## Website Roles
+
+Each website member has one of three roles:
+
+| Role | What they can do |
+|---|---|
+| **Owner** | Original website ownership and full management of all settings |
+| **Admin** | View analytics and manage website settings, members, goals, funnels, and alerts |
+| **Viewer** | View analytics without any website management actions |
+
+Only **Owners** and **Admins** can invite members or change website management settings. An existing Owner cannot be converted to Admin or Viewer through the standard role control.
+
+## Invite a Website Member
+
+<Steps>
+  <Step title="Open the website's Team settings">
+    Navigate to the website, then open **Settings** and choose **Team**.
+  </Step>
+  <Step title="Select Invite Member">
+    Click **Invite Member** to open the invitation form.
+  </Step>
+  <Step title="Enter the email address and choose a role">
+    Type the teammate's email address and select either **Admin** or **Viewer** depending on the level of access they need.
+  </Step>
+  <Step title="Send the invitation">
+    Submit the form and confirm the invitation appears in the members table as **Pending**.
+  </Step>
+  <Step title="Confirm acceptance">
+    After the teammate accepts, return to the **Team** settings and verify their role is listed correctly.
+  </Step>
+</Steps>
+
+<Warning>
+  Email invitations require outbound email delivery to be configured in your MetricPanel environment. When email delivery is unavailable, a pending invitation may not have reached the recipient — confirm with them directly before assuming they received it.
+</Warning>
+
+## Change or Remove Access
+
+Owners and Admins can:
+
+- **Change a member's role** between Admin and Viewer at any time from the **Team** settings table.
+- **Remove a member** from the website by selecting the remove action next to their name.
+
+Removing someone from a website does not delete their MetricPanel account or remove their access to other organizations and websites they belong to.
+
+<Tip>
+  Review **pending invitations** as part of any access audit. Cancel invitations that are no longer needed before they expire — a pending invitation is still an open door.
+</Tip>
+
+## Billing and Usage
+
+<CardGroup cols={2}>
+  <Card title="Billing" icon="credit-card">
+    Open **Billing** to review your current plan, billing interval, and available plan changes. Use the checkout or customer portal to update payment details.
+  </Card>
+  <Card title="Usage" icon="chart-bar">
+    Open **Usage** to see your current event allowance, how much you've used, and any configured pause-tracking behavior when limits are reached.
+  </Card>
+</CardGroup>
+
+<Note>
+  Billing checkout and the customer portal are only available when your MetricPanel environment has Stripe billing configured. If the Billing page reports that billing is unavailable, contact your operator or refer to the written agreement associated with your account — don't retry payment details in the UI.
+</Note>
+
+## Access Review Checklist
+
+Run through this checklist periodically and whenever someone joins or leaves your team:
+
+<Accordion title="Access review checklist">
+  - [ ] Every teammate uses their own individual MetricPanel account — no shared logins.
+  - [ ] Admin access is limited to people who actively manage website settings or other members.
+  - [ ] All pending invitations still have a current business purpose; cancel any that are outdated.
+  - [ ] Former teammates are removed from every website they had access to.
+  - [ ] Billing contacts and operational alert destinations are up to date and actively monitored.
+  - [ ] API tokens and webhook secrets are rotated separately whenever someone with credential access leaves the team.
+</Accordion>

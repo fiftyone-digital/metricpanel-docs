@@ -1,0 +1,88 @@
+---
+title: "Stripe Revenue Attribution with MetricPanel"
+sidebarTitle: "Stripe"
+description: "Attribute Stripe Checkout sessions, Payment Intents, and paid invoices to MetricPanel visitors and campaigns using metadata and a signed webhook."
+---
+
+Stripe revenue attribution works by attaching MetricPanel visitor and session metadata to a Checkout session before the buyer pays, then reading that metadata from a signed webhook after Stripe confirms the payment. The result is a direct link between a revenue event and the campaign, session, and visitor that produced it.
+
+<Steps>
+  <Step title="Install tracking before checkout">
+    The MetricPanel hosted script or SDK must initialize and create a visitor record before you request checkout metadata. Call `getStripeMetadata()` client-side and pass the result to your server:
+
+    ```ts
+    const metricpanelMetadata = metricpanel.getStripeMetadata()
+    ```
+
+    Send this object to your server in the same request that triggers Checkout session creation. MetricPanel reads the metadata back from whichever Stripe object your webhook handler receives — so it must be present before the session is created, not added after the fact.
+  </Step>
+
+  <Step title="Create Checkout with metadata">
+    Attach the metadata object when you create the Stripe Checkout session on your server:
+
+    ```ts
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      line_items: [{ price: 'price_123', quantity: 1 }],
+      success_url: 'https://example.com/success',
+      cancel_url: 'https://example.com/pricing',
+      metadata: metricpanelMetadata,
+    })
+    ```
+
+    <Note>
+    For subscription workflows, confirm that the metadata is available on the object your `invoice.paid` handling path receives. Test the exact lifecycle you sell — do not assume one-time Checkout behavior covers renewals automatically.
+    </Note>
+  </Step>
+
+  <Step title="Configure the managed connection">
+    Open your website's **Settings**, choose **Revenue**, then select **Stripe**. Save the restricted Stripe API key that the form requests.
+
+    <Warning>
+    Use a restricted key with only the read permissions listed in the dashboard. Do not paste a publishable browser key or an unrestricted account key.
+    </Warning>
+
+    Copy the webhook endpoint shown by MetricPanel and register it in your Stripe webhook configuration. The API runtime endpoint follows this shape:
+
+    ```text
+    https://api.your-metricpanel-domain.com/api/webhooks/stripe
+    ```
+
+    Subscribe only to the payment events your checkout model uses. MetricPanel currently handles Checkout session completion, successful Payment Intents, and paid invoices. Enabling overlapping events is safe only when stable provider identifiers prevent retries and related events from being double-counted.
+  </Step>
+
+  <Step title="Verify with Stripe test mode">
+    Confirm end-to-end attribution before going live:
+
+    1. Switch to Stripe test credentials and use a test price.
+    2. Open the checkout from a browser session that has loaded the MetricPanel tracker.
+    3. Complete the test payment using a Stripe test card.
+    4. Confirm Stripe reports a successful webhook delivery in the Stripe Dashboard.
+    5. Confirm the MetricPanel connection shows an updated **last webhook** timestamp and attributed revenue.
+    6. Open Revenue Analytics and verify that the amount, currency, product, visitor, session, and campaign fields are all populated correctly.
+  </Step>
+</Steps>
+
+## Common failures
+
+<Accordion title="Webhook rejected">
+Verify that the webhook endpoint URL belongs to the MetricPanel API runtime — not the app domain — and that the signing secret saved in the MetricPanel connection matches the secret shown for that exact Stripe endpoint. A mismatch between the secret and the endpoint causes every delivery to fail signature verification.
+</Accordion>
+
+<Accordion title="Payment recorded without attribution">
+The Checkout session was created before MetricPanel metadata was attached, or the metadata was omitted from the `metadata` field entirely. Confirm that `getStripeMetadata()` is called in a tracked browser session and that the returned object is included in `stripe.checkout.sessions.create` before the session URL is returned to the browser.
+</Accordion>
+
+<Accordion title="Subscription renewal missing">
+For recurring payments, the `invoice.paid` event carries the invoice object, not the original Checkout session. Confirm that your implementation recovers MetricPanel metadata from the subscription or invoice — for example, by copying it to the subscription's metadata when the subscription is created.
+</Accordion>
+
+<Accordion title="Duplicate revenue">
+Two webhook events for the same payment — such as `checkout.session.completed` and `payment_intent.succeeded` — can both trigger revenue records if your subscription includes overlapping events. Use the stable Stripe transaction or payment identifier to deduplicate, and subscribe only to the events your model requires.
+</Accordion>
+
+<Accordion title="Wrong amount">
+Ensure that both Stripe and MetricPanel are operating in the smallest currency unit for the transaction currency (for example, cents for USD). Passing a value in major units (dollars) instead of minor units (cents) results in amounts that are off by a factor of 100.
+</Accordion>
+
+Continue with [Revenue](/revenue) for custom API ingestion and verification guidance.

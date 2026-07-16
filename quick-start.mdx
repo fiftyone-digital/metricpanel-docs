@@ -1,0 +1,157 @@
+---
+title: "Quick Start: Add MetricPanel to Your Website in Minutes"
+sidebarTitle: "Quick Start"
+description: "Install the MetricPanel tracking script, confirm live traffic, and start measuring the events that create signups, customers, and revenue—step by step."
+---
+
+Getting MetricPanel running takes just a few minutes. Follow these seven steps to go from a blank workspace to a live analytics setup with pageviews, custom events, goals, funnels, and privacy controls all confirmed and working.
+
+<Steps>
+
+  <Step title="Add Your Website">
+    Create a MetricPanel account, open the dashboard, and add the website you want to track. Copy the **website ID** from the setup flow—you will need it in the next step.
+
+    If you are evaluating locally, use the dashboard setup page to confirm that the domain and website ID match the site where you will install the script. Mismatched domains are one of the most common causes of missing pageviews during initial setup.
+  </Step>
+
+  <Step title="Install the Tracking Script">
+    Add the hosted script to your site layout so it loads on every page. Replace `YOUR_WEBSITE_ID` with the ID you copied in step 1, and replace `YOUR_APP_DOMAIN` with your MetricPanel app domain:
+
+    ```html
+    <script
+      defer
+      data-website-id="YOUR_WEBSITE_ID"
+      src="https://YOUR_APP_DOMAIN/script.js"
+    ></script>
+    ```
+
+    **Framework placement tips:**
+
+    - **Next.js** — place the script in your root layout using `next/script` with `strategy="afterInteractive"`.
+    - **React / Vite / Astro** — add it to the shared document head or before the closing `</body>` tag in your base layout.
+    - **WordPress / Webflow** — paste it into the global header or footer injection area of your theme or site settings.
+
+    See [Installation Guides](/install-guides) for complete, copy-paste examples for every major framework, CMS, and tag manager. See [Tracking Script](/tracking-script) for the full configuration reference, including domain settings, API URL overrides, and consent mode.
+
+    <Note>
+      If you are replacing another analytics tool, read [Switching to MetricPanel](/switching-to-metricpanel) before rollout to check for migration gaps around historical imports, Search Console, source aliases, and codeless event metadata.
+    </Note>
+  </Step>
+
+  <Step title="Track Important Events">
+    Start with the events your team already cares about. Name them in `snake_case` and keep names stable—renaming an event breaks historical goal and funnel data:
+
+    - `signup_started`
+    - `signup_completed`
+    - `demo_requested`
+    - `checkout_started`
+    - `purchase_completed`
+    - `plan_upgraded`
+
+    Send custom events using the JavaScript SDK, the hosted script's global API, or the server-side event ingestion route:
+
+    <Tabs>
+      <Tab title="JavaScript SDK">
+        ```ts
+        // Install: npm install @metricpanel/sdk
+        import { metricpanel } from '@metricpanel/sdk'
+
+        // Track a named event with optional metadata
+        await metricpanel.event('signup_completed', { plan: 'pro' })
+        ```
+      </Tab>
+      <Tab title="Hosted Script (Global API)">
+        ```js
+        // Available after the hosted script loads
+        window.metricpanel('event', 'signup_completed', { plan: 'pro' })
+        ```
+      </Tab>
+      <Tab title="Server-Side Ingestion">
+        ```ts
+        // POST to your MetricPanel API runtime
+        await fetch('https://api.your-metricpanel-domain.com/api/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            websiteId: 'YOUR_WEBSITE_ID',
+            event: 'purchase_completed',
+            properties: { plan: 'pro', amount: 49 },
+          }),
+        })
+        ```
+      </Tab>
+    </Tabs>
+
+    <Tip>
+      Use the server-side route for events that fire after a page unload—such as checkout confirmations or webhook-triggered state changes—where browser calls may not complete reliably.
+    </Tip>
+  </Step>
+
+  <Step title="Create Goals and Funnels">
+    Turn your confirmed events into measurable outcomes in the MetricPanel dashboard.
+
+    **Recommended starting goals:**
+    - Goal: `signup_completed`
+    - Goal: `demo_requested`
+    - Goal: `purchase_completed`
+
+    **Recommended starting funnels:**
+    - Landing page → `signup_started` → `signup_completed`
+    - Pricing page → `checkout_started` → `purchase_completed`
+
+    Goals and funnels let you find where visitors drop off and which traffic sources create paying customers—not just which sources drive the most pageviews. Create at least one funnel before moving to revenue tracking so you have a conversion baseline to compare against.
+  </Step>
+
+  <Step title="Add Revenue Events">
+    If revenue tracking is part of your rollout, send revenue events through the SDK or the event ingestion API. You can also connect provider webhooks when they match your billing workflow.
+
+    MetricPanel supports native revenue integrations with **Stripe**, **Polar**, **LemonSqueezy**, and **Shopify**. For custom payment systems, use `POST /api/v1/revenue/events` with an `ingest`-scoped website API token.
+
+    Revenue events let MetricPanel attribute customer value back to sources, campaigns, landing pages, and funnels—so you can see which acquisition paths actually generate revenue, not just visits.
+
+    <Warning>
+      Add revenue tracking only after your base pageview and event data is clean. Revenue attributed to mismatched sessions or missing source data cannot be retroactively corrected.
+    </Warning>
+  </Step>
+
+  <Step title="Configure Privacy Controls">
+    Before broad rollout, decide how MetricPanel should behave for your market and privacy policy. Review each option and choose the combination that fits your compliance requirements:
+
+    | Control | What it does |
+    |---|---|
+    | Consent-gated tracking | Pauses all event collection until the visitor grants consent |
+    | Cookieless tracking | Uses session-scoped storage instead of persistent cookies |
+    | Geo-disabled tracking | Suppresses collection for visitors in specified regions |
+    | Visitor deletion workflow | Removes stored visitor data on request |
+    | Data retention policy | Sets how long raw event data is kept before automatic deletion |
+
+    Read [Privacy & Consent](/privacy-consent) and [Data Retention & Portability](/data-retention-portability) before copying any privacy snippets into production. Incorrectly configured consent mode can silently drop all events.
+  </Step>
+
+  <Step title="Confirm the Setup">
+    Open your website in a browser and work through this verification checklist before declaring the install complete:
+
+    - [ ] The tracking script loads without a console error
+    - [ ] A live visitor appears in the MetricPanel real-time view
+    - [ ] Your first pageview is recorded in the dashboard
+    - [ ] Your first custom event appears under the Events view
+    - [ ] Goals and funnels update after matching events arrive
+
+    <Accordion title="Events are not appearing—what should I check?">
+      Work through these checks in order:
+
+      1. **Website ID** — confirm `data-website-id` on the script tag matches the ID in your dashboard exactly.
+      2. **Allowed domain** — verify the domain your site runs on is listed in the website's allowed domain settings.
+      3. **Script URL** — confirm `/script.js` returns a `200` response from your MetricPanel app domain.
+      4. **Consent state** — if you added `data-consent`, call `window.metricpanel.giveConsent()` or check that your consent callback fires correctly.
+      5. **API route** — if your app domain and API runtime are separate deployments, confirm `data-api-url` points to the correct API host.
+
+      If events still do not appear after checking all five, continue with [Troubleshooting](/troubleshooting).
+    </Accordion>
+  </Step>
+
+</Steps>
+
+## Running MetricPanel Yourself
+
+This page is for product teams adding analytics to a website. If you are deploying the MetricPanel infrastructure yourself, start with [Self-Hosting](/self-hosting), [Deployment](/deployment), and [Database & Data Layer](/database) instead.

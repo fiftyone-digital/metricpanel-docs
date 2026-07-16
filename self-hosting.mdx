@@ -1,0 +1,107 @@
+---
+title: "Self-Hosting MetricPanel on Your Own Infrastructure"
+sidebarTitle: "Self-Hosting"
+description: "Run MetricPanel on infrastructure you control. Understand the required services, supported deployment shape, and the readiness checklist before going live."
+---
+
+MetricPanel v1 can run entirely on infrastructure you own and operate, but it is not a single-container product. Each runtime process serves a distinct role, and the backing services—Postgres, Tinybird, and Redis—cannot be replaced with a single all-in-one image. Plan for separate deployments before you start.
+
+<Warning>
+  MetricPanel v1 is **not a one-container product**. A production deployment requires separate app processes (dashboard, marketing, API/realtime, and worker) plus three managed backing services. Do not attempt to run everything from a single Docker Compose file or Heroku dyno.
+</Warning>
+
+## Required Services
+
+Every service in the table below must be reachable before MetricPanel can accept events, display data, or process billing.
+
+| Service | Purpose |
+|---|---|
+| **Neon Postgres** | Better Auth, product state, billing state, API tokens, HMAC metadata, website settings |
+| **Tinybird** | Raw analytics facts, revenue facts, goals, funnels, dashboards, exports |
+| **Redis** | Streams queue, realtime state, worker heartbeat, queue lag, recent activity |
+| **Dashboard host** | Authenticated product UI |
+| **Marketing host** | Public website and docs |
+| **API/realtime host** | Ingestion, webhooks, analytics endpoints, SSE |
+| **Worker host** | Continuous Redis Streams processing |
+
+## Supported Deployment Shape
+
+The recommended v1 shape is a combination of managed platforms that each handle what they do best.
+
+<CardGroup cols={2}>
+  <Card title="Vercel" icon="triangle">
+    Hosts the dashboard and marketing apps. Handles edge caching, preview deployments, and automatic TLS.
+  </Card>
+  <Card title="Railway" icon="train-front">
+    Runs the API/realtime server and the worker as a long-running process. Supports zero-downtime deploys and environment-variable management.
+  </Card>
+  <Card title="Neon + Tinybird + Redis" icon="database">
+    Managed backing services for transactional state, analytics facts, and the ingestion queue. Do not self-host these for your first production deployment.
+  </Card>
+  <Card title="Cloudflare" icon="cloud">
+    Handles DNS, TLS, WAF rules, and first-party tracking proxy routes that keep your tracker behind your own domain.
+  </Card>
+</CardGroup>
+
+<Note>
+  The repo does not ship a full local production appliance. Use managed services for production and isolated SQLite/PGLite or mocked services for automated tests.
+</Note>
+
+## Local Development
+
+Run these commands to install dependencies, bootstrap the local environment, verify it, and start all processes.
+
+```bash
+bun install
+bun run bootstrap:local
+bun run bootstrap:local -- --check
+bun run dev
+```
+
+The root `dev` command starts the dashboard, marketing site, API/realtime server, and worker together. The worker **must** be running for queued analytics events to be processed—starting only the dashboard or API will leave events stuck in the Redis Stream.
+
+## Production Build Commands
+
+Build each app individually so each deployment target gets its own artifact.
+
+```bash
+bun install --frozen-lockfile
+bun run --cwd apps/dashboard build
+bun run --cwd apps/marketing build
+bun run --cwd apps/api build
+bun run --cwd apps/worker build
+bun run --cwd apps/worker start
+```
+
+Start the worker separately from the web-request runtimes. It is a long-running process and should not be co-located with a serverless function deployment.
+
+## Readiness Checklist
+
+Work through every item before sending production traffic.
+
+<Steps>
+  <Step title="Apply Neon Migrations">
+    Run Drizzle migrations against your production Neon branch. Confirm the schema version matches the deployed code.
+  </Step>
+  <Step title="Verify Auth Configuration">
+    Confirm Better Auth trusted origins and the cookie domain match your final production hostnames.
+  </Step>
+  <Step title="Deploy Tinybird Resources">
+    Deploy all Tinybird data sources and pipes. Confirm analytical endpoints return results.
+  </Step>
+  <Step title="Test the Redis Queue">
+    Verify the Redis Streams queue can enqueue, consume, acknowledge, retry, and dead-letter events end-to-end.
+  </Step>
+  <Step title="Deploy All Four App Targets">
+    Confirm dashboard, marketing, API/realtime, and worker each have their own deployment target and environment.
+  </Step>
+  <Step title="Configure Stripe">
+    Confirm Stripe price IDs and webhook secrets match your tier, bucket, and interval billing model.
+  </Step>
+  <Step title="Configure Cloudflare">
+    Confirm Cloudflare routes dashboard, marketing, API, and tracking proxy traffic to the correct origins.
+  </Step>
+  <Step title="Run Hosted Smoke Tests">
+    Complete the hosted smoke suite: signup, login, website creation, first event, analytics dashboard, realtime SSE, billing, team invite, and provider connection UI.
+  </Step>
+</Steps>

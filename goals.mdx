@@ -1,0 +1,118 @@
+---
+title: "Track Conversions with Goals in MetricPanel"
+sidebarTitle: "Goals"
+description: "Turn raw pageviews and custom events into measurable conversions — signups, demo requests, trial starts, and purchases — using MetricPanel goals."
+---
+
+Goals convert raw activity into outcomes that actually matter to your business. Instead of sifting through pageview counts, you define what a conversion looks like — a completed signup, a demo request, a trial start, or a purchase confirmation — and MetricPanel tracks it automatically. A goal can match an event key, a page path, or either rule, giving you the flexibility to instrument conversions the way your application is built.
+
+## Goal types
+
+Choose the type that fits the technical shape of your conversion:
+
+| Type | Matches |
+| ------------- | ---------------------------------------------------- |
+| Event | An exact custom event key such as `signup_completed` |
+| Pageview | A URL pattern such as `/thank-you*` |
+| Event or page | The configured event key **or** URL pattern |
+
+Page patterns support `*` as a wildcard. Keep patterns narrow enough that navigation unrelated to the conversion cannot match accidentally.
+
+<Note>
+  Goal type is fixed after creation. You can edit the selector and value, pause the goal, or delete it and create a replacement when the underlying meaning changes.
+</Note>
+
+## Create a goal
+
+<Steps>
+  <Step title="Open Goals">
+    Open the website in MetricPanel and choose **Goals** from the navigation.
+  </Step>
+  <Step title="Start a new goal">
+    Select **Create Goal** to open the goal builder.
+  </Step>
+  <Step title="Name and describe it">
+    Add a clear name and an optional description so teammates understand what this goal represents at a glance.
+  </Step>
+  <Step title="Set the type and selector">
+    Choose the goal type, then provide the event key, URL pattern, or both depending on your selection.
+  </Step>
+  <Step title="Add an optional value">
+    Enter a value in USD when the conversion has a stable business value — for example, `25` for a free trial that typically converts to a paid plan. Leave it blank for goals where value varies.
+  </Step>
+  <Step title="Save and verify">
+    Save the goal, then perform the matching action in a test session to confirm it records a completion.
+  </Step>
+</Steps>
+
+## Event goal example
+
+Instrument the action in your application code, then point the goal at the same event key.
+
+```ts
+await metricpanel.event('trial_started', {
+  plan: 'pro',
+  trial_days: 14,
+})
+```
+
+Create an **Event** goal with `trial_started` as the event key. MetricPanel records matching completions and reports completion count, unique visitors, conversion rate, and the configured value.
+
+<Tip>
+  Keep event keys lowercase with underscores and make them describe the action that completed, not the button that was clicked — `trial_started` rather than `start_trial_button`.
+</Tip>
+
+## Pageview goal example
+
+Use a pageview goal when the conversion has a reliable terminal route that only loads after the action succeeds:
+
+```text
+/checkout/success*
+```
+
+<Warning>
+  Avoid using a success page that can be refreshed or opened without completing the action — unless duplicate pageviews are acceptable for your analysis. An explicit server-confirmed event is usually stronger for purchases.
+</Warning>
+
+## Explicit goal calls
+
+When your application is the authoritative place that decides a conversion occurred, call `metricpanel.goal()` directly instead of relying on dashboard event matching:
+
+```ts
+await metricpanel.goal({
+  name: 'sales_qualified_lead',
+  value: 25000,
+  properties: { source: 'demo_form' },
+})
+```
+
+<Info>
+  Pass `value` in the **smallest currency unit** — cents for USD, pence for GBP, and so on. Use `25000` to represent `$250.00`. Prefer dashboard goal definitions for reusable event or page matching; use an explicit goal call when a specific code path is the only valid trigger.
+</Info>
+
+## Verification checklist
+
+Before relying on a goal in reports or funnels, run through this checklist:
+
+<CardGroup cols={2}>
+  <Card title="Event key matches" icon="key">
+    The event key in your goal definition exactly matches the string emitted by your SDK `event()` call — including case and underscores.
+  </Card>
+  <Card title="URL pattern is narrow" icon="link">
+    The URL pattern matches only the intended conversion route and cannot be reached by navigating to unrelated pages.
+  </Card>
+  <Card title="Value units are correct" icon="dollar-sign">
+    Optional value is entered in dashboard USD **or** SDK smallest units, as documented by each surface.
+  </Card>
+  <Card title="One completion per fresh session" icon="check">
+    A fresh session produces exactly one expected completion when you walk through the conversion flow.
+  </Card>
+</CardGroup>
+
+<Note>
+  Paused goals stop matching new activity, but all underlying raw analytics events remain available in your event stream. Pause rather than delete when you need to investigate a goal without losing history.
+</Note>
+
+---
+
+Ready to put your goals in order? Continue with [Funnels](/funnels) to place a goal inside an ordered customer journey and see exactly where visitors drop off.

@@ -1,72 +1,107 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mintlify Starter Kit",
+  "name": "MetricPanel",
+  "theme": "luma",
+  "favicon": "https://media.brand.dev/bfc22b13-82df-489f-b259-843e62ce66d2.png",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
-  },
-  "favicon": "/favicon.svg",
-  "navigation": {
-    "pages": [
-      {
-        "group": "Getting Started",
-        "pages": [
-          "index",
-          "quickstart"
-        ]
-      }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
+    "primary": "#848484",
+    "light": "#1a1a1a",
+    "dark": "#c4c4c4"
   },
   "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
     "primary": {
       "type": "button",
-      "label": "Dashboard",
-      "href": "https://app.mintlify.com"
+      "label": "Get Started",
+      "href": "/quick-start"
     }
   },
-  "contextual": {
-    "options": [
-      "copy",
-      "view",
-      "chatgpt",
-      "claude",
-      "perplexity",
-      "mcp",
-      "cursor",
-      "vscode"
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quick-start",
+              "install-guides",
+              "switching-to-metricpanel"
+            ]
+          },
+          {
+            "group": "Tracking",
+            "pages": [
+              "tracking-script",
+              "sdk",
+              "events",
+              "first-party-domain"
+            ]
+          },
+          {
+            "group": "Analytics",
+            "pages": [
+              "goals",
+              "funnels",
+              "alerts",
+              "revenue"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "integrations",
+              "integrations/stripe-revenue",
+              "integrations/polar-revenue",
+              "integrations/lemonsqueezy-revenue",
+              "integrations/shopify-revenue"
+            ]
+          },
+          {
+            "group": "Privacy & Compliance",
+            "pages": [
+              "privacy-consent",
+              "consent-banner-examples",
+              "data-retention-portability"
+            ]
+          },
+          {
+            "group": "Account & Workspace",
+            "pages": [
+              "billing-team",
+              "authentication"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api-reference",
+              "api-integration/hmac-signatures"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Self-Hosting",
+        "groups": [
+          {
+            "group": "Operator Runbooks",
+            "pages": [
+              "self-hosting",
+              "deployment",
+              "database",
+              "troubleshooting",
+              "import-from-plausible",
+              "performance-benchmarks"
+            ]
+          }
+        ]
+      }
     ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
   }
 }

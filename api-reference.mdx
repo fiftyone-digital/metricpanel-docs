@@ -1,0 +1,508 @@
+---
+title: "MetricPanel API Reference: Public Endpoints Guide"
+sidebarTitle: "API Reference"
+description: "Authenticate, ingest events and revenue, query analytics, share reports, and connect revenue providers using MetricPanel's stable public API surface."
+---
+
+MetricPanel's public API lets you send events from any server-side environment, ingest revenue from custom payment flows, query analytics data for reporting pipelines and AI agents, and share read-only dashboards with stakeholders — all without exposing session credentials or touching the dashboard UI. This page covers every route you can call from your own code.
+
+<Note>
+  MetricPanel does **not** yet expose a full Plausible-style public stats/export API. The current public surface is intentionally narrow: stable event and revenue ingestion, token-scoped analytics reads, and dashboard-generated public report links. Session-backed dashboard routes, cron/admin operational routes, and privacy-deletion routes are internal and not documented here.
+</Note>
+
+## Authentication Modes
+
+Use this table to pick the right token type for each surface you want to call.
+
+| Surface | Auth model | Who calls it |
+|---|---|---|
+| `POST /api/events` | None required; optional API token + optional HMAC signature | Browser tracker, SDK, server-side ingestion |
+| `POST /api/v1/revenue/events` | Website API token with `ingest` scope | Server-side payment and checkout systems |
+| `GET /api/v1/analytics/stats`, `agent-summary`, `top`, `events`, `visitors`, `export` | Website API token with `analytics` scope | Server-side reporting and agent workflows |
+| `/reports/[websiteId]` | Website API token in the URL fragment | Shared read-only viewers and report embeds |
+| `/api/webhooks/*` | Provider signature headers | Stripe, Polar, LemonSqueezy, Shopify |
+
+Create and manage website API tokens from the **API & Security** tab inside your website settings in the dashboard. When making requests, pass the token as either:
+
+- `Authorization: Bearer <token>`
+- `X-API-Token: <token>`
+
+---
+
+## Public Event Ingestion
+
+### POST /api/events
+
+Send this request to ingest pageviews, custom events, and revenue events from your browser scripts, server-side code, or SDK. No authentication is required, but you can add an API token and an HMAC signature for additional security.
+
+<ParamField body="websiteId" type="string" required>
+  Your website's public ID, found in the dashboard website settings.
+</ParamField>
+
+<ParamField body="visitorId" type="string" required>
+  A stable identifier for the visitor. Generate this on your client and persist it for the session lifetime.
+</ParamField>
+
+<ParamField body="sessionId" type="string" required>
+  A per-session identifier. Create a new one when the visitor starts a fresh session.
+</ParamField>
+
+<ParamField body="type" type="string" required>
+  Event type. One of `pageview`, `event`, `revenue`, or `goal`.
+</ParamField>
+
+<ParamField body="path" type="string" required>
+  The URL path being tracked, for example `/pricing`.
+</ParamField>
+
+<ParamField body="title" type="string">
+  Page title for the current path.
+</ParamField>
+
+<ParamField body="referrer" type="string">
+  Full referrer URL, if available.
+</ParamField>
+
+<ParamField body="query" type="string">
+  Query string, used for UTM parameter attribution.
+</ParamField>
+
+<ParamField body="name" type="string">
+  Custom event name when `type` is `event`.
+</ParamField>
+
+<ParamField body="properties" type="object">
+  Arbitrary key-value properties attached to a custom event.
+</ParamField>
+
+<ParamField body="amount" type="integer">
+  Revenue amount in the smallest currency unit (for example, cents). Use with `type: "revenue"`.
+</ParamField>
+
+<ParamField body="currency" type="string">
+  ISO 4217 currency code, for example `USD` or `EUR`. Use with `type: "revenue"`.
+</ParamField>
+
+<ParamField body="productId" type="string">
+  Product identifier for revenue events.
+</ParamField>
+
+<ParamField body="productName" type="string">
+  Human-readable product label for revenue events.
+</ParamField>
+
+<ParamField body="metadata" type="object">
+  Additional arbitrary metadata for revenue events.
+</ParamField>
+
+<ParamField body="_privacyMode.cookieless" type="boolean">
+  Set to `true` to opt this event into cookieless tracking mode.
+</ParamField>
+
+<ParamField body="_privacyMode.disableGeo" type="boolean">
+  Set to `true` to skip geographic resolution for this event.
+</ParamField>
+
+**Optional auth headers:**
+
+| Header | Description |
+|---|---|
+| `Authorization: Bearer <token>` or `X-API-Token: <token>` | Website API token for domain validation |
+| `X-Signature`, `X-HMAC-Signature`, or `X-Webhook-Signature` | HMAC-SHA256 signature for payload integrity |
+
+**Response codes:**
+
+| Code | Meaning |
+|---|---|
+| `202` | Event accepted and queued for processing |
+| `401` | API token is invalid |
+| `403` | Token/domain mismatch or invalid HMAC signature |
+| `404` | Website public ID is invalid or inactive |
+
+```bash
+curl -X POST https://api.example.com/api/events \
+  -H "Content-Type: application/json" \
+  -H "X-API-Token: mtk_..." \
+  -d '{
+    "websiteId": "web_123",
+    "visitorId": "visitor_123",
+    "sessionId": "session_123",
+    "type": "pageview",
+    "path": "/pricing",
+    "title": "Pricing"
+  }'
+```
+
+<Tip>
+  For signed-request examples and secret rotation guidance, see [HMAC Signatures](/api-integration/hmac-signatures).
+</Tip>
+
+---
+
+## Revenue Ingestion
+
+### POST /api/v1/revenue/events
+
+Use this route when your custom payment or checkout system needs a dedicated revenue-write endpoint, rather than sending a generic `type: "revenue"` payload through `/api/events`.
+
+**Auth:** Include a website API token with the `ingest` scope. If the token restricts to specific allowed domains, the request `Origin` or `Referer` host must match one of them.
+
+<ParamField body="transactionId" type="string" required>
+  Your provider's transaction, invoice, checkout, or order ID. MetricPanel uses `provider + transactionId` as the idempotency key — submitting the same pair twice does not create a duplicate.
+</ParamField>
+
+<ParamField body="amount" type="integer" required>
+  Revenue amount as a positive integer in the smallest currency unit, for example `9900` for $99.00 USD.
+</ParamField>
+
+<ParamField body="currency" type="string" required>
+  ISO 4217 currency code, for example `USD` or `EUR`.
+</ParamField>
+
+<ParamField body="websiteId" type="string">
+  Public website ID. If omitted, the token's associated website is used.
+</ParamField>
+
+<ParamField body="provider" type="string">
+  A label identifying your payment system. Defaults to `api`.
+</ParamField>
+
+<ParamField body="visitorId" type="string">
+  MetricPanel visitor ID when available, to link the purchase to tracked analytics.
+</ParamField>
+
+<ParamField body="sessionId" type="string">
+  MetricPanel session ID when available.
+</ParamField>
+
+<ParamField body="productId" type="string">
+  Product or SKU identifier.
+</ParamField>
+
+<ParamField body="productName" type="string">
+  Human-readable product label.
+</ParamField>
+
+<ParamField body="source" type="string">
+  UTM source or acquisition channel label.
+</ParamField>
+
+<ParamField body="campaign" type="string">
+  UTM campaign label.
+</ParamField>
+
+<ParamField body="customerEmail" type="string">
+  Customer email for revenue attribution.
+</ParamField>
+
+<ParamField body="customerId" type="string">
+  Your internal customer identifier.
+</ParamField>
+
+<ParamField body="metadata" type="object">
+  Arbitrary key-value metadata for this transaction.
+</ParamField>
+
+<ParamField body="timestamp" type="string">
+  ISO 8601 timestamp for the transaction. Defaults to the time of ingestion.
+</ParamField>
+
+**Success response (200):**
+
+```json
+{
+  "status": "success",
+  "data": {
+    "created": true,
+    "transactionId": "checkout_123",
+    "provider": "custom_checkout",
+    "amount": 9900,
+    "currency": "USD",
+    "visitorId": "visitor_123",
+    "sessionId": "session_123"
+  },
+  "meta": {
+    "websiteId": "web_123",
+    "idempotency": "provider + transactionId"
+  }
+}
+```
+
+```bash
+curl -X POST https://api.example.com/api/v1/revenue/events \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer mtk_..." \
+  -d '{
+    "websiteId": "web_123",
+    "transactionId": "checkout_123",
+    "amount": 9900,
+    "currency": "USD",
+    "provider": "custom_checkout",
+    "visitorId": "visitor_123",
+    "sessionId": "session_123",
+    "productName": "Pro plan"
+  }'
+```
+
+<Note>
+  **Idempotency:** Submitting the same `provider + transactionId` pair more than once does not create duplicate revenue records. This makes it safe to retry on network errors.
+</Note>
+
+---
+
+## Analytics Endpoints
+
+All analytics endpoints require a website API token with the `analytics` scope. Pass the token as `Authorization: Bearer <token>` or `X-API-Token: <token>`.
+
+### GET /api/v1/analytics/stats
+
+Retrieve a website-scoped summary of visitors, pageviews, sessions, revenue, and engagement for any date range. Use this for server-side reporting integrations that need aggregate metrics without session cookies.
+
+**Query parameters:**
+
+| Parameter | Required | Description |
+|---|---|---|
+| `websiteId` | No | Public website ID. If supplied, must match the token's website. |
+| `from` | No | Start date string. Defaults to 30 days ago. |
+| `to` | No | End date string. Defaults to today. |
+| `referrer` | No | Filter by referrer domain. |
+| `country` | No | Filter by country code. |
+| `device` | No | Filter by device type. |
+
+**Response includes:** `visitors` (total + growth), `pageviews` (total + growth + per-visitor), `sessions` (total + avg duration), `revenue` (total + per-visitor), and `engagement` (bounce rate + avg session duration).
+
+```bash
+curl "https://api.example.com/api/v1/analytics/stats?websiteId=web_123&from=2026-05-01&to=2026-05-09" \
+  -H "Authorization: Bearer mtk_..."
+```
+
+---
+
+### GET /api/v1/analytics/agent-summary
+
+Retrieve a compact analytics context designed for AI agents, CLI helpers, MCP wrappers, and server-side reporting jobs. A single request returns aggregate summary figures, top-list breakdowns, plain-text insights, and suggested follow-up questions — without scraping the dashboard or chaining multiple API calls.
+
+**Query parameters:**
+
+| Parameter | Required | Description |
+|---|---|---|
+| `websiteId` | No | Public website ID. If supplied, must match the token's website. |
+| `from` | No | Start date string. Defaults to 30 days ago. |
+| `to` | No | End date string. Defaults to today. |
+| `limit` | No | Integer 1–25. Controls the length of each top-list. Defaults to `5`. |
+| `referrer` | No | Filter by referrer domain. |
+| `country` | No | Filter by country code. |
+| `device` | No | Filter by device type. |
+
+**Response includes:** `summary` (key metrics), `top` (pages, events, referrers, source categories), `insights` (plain-text strings), `suggestedQuestions`, and `caveats`.
+
+```bash
+curl "https://api.example.com/api/v1/analytics/agent-summary?websiteId=web_123&limit=5" \
+  -H "Authorization: Bearer mtk_..."
+```
+
+You can also call this endpoint from the bundled CLI for local operator or agent workflows:
+
+```bash
+API_URL="https://api.example.com" \
+METRICPANEL_API_TOKEN="mtk_..." \
+METRICPANEL_WEBSITE_ID="web_123" \
+bun run analytics:agent-summary -- --format markdown
+```
+
+<Note>
+  This endpoint returns deterministic, pre-computed context. It does not call an AI provider or generate narratives — your AI agent or MCP wrapper supplies that layer.
+</Note>
+
+---
+
+### GET /api/v1/analytics/top
+
+Retrieve top-list breakdowns for any supported metric dimension. Use this for server-side reporting integrations that need ranked aggregate rows without dashboard session cookies.
+
+**Query parameters:**
+
+| Parameter | Required | Description |
+|---|---|---|
+| `metric` | **Yes** | One of `pages`, `events`, `properties`, `referrers`, `source_categories`, `countries`, `devices`, `browsers`, or `operating_systems`. |
+| `websiteId` | No | Public website ID. If supplied, must match the token's website. |
+| `from` | No | Start date string. Defaults to 30 days ago. |
+| `to` | No | End date string. Defaults to today. |
+| `limit` | No | Integer 1–1000. Defaults to `100`. |
+| `referrer` | No | Filter by referrer domain. |
+| `country` | No | Filter by country code. |
+| `device` | No | Filter by device type. |
+
+```bash
+curl "https://api.example.com/api/v1/analytics/top?websiteId=web_123&metric=referrers&limit=25" \
+  -H "Authorization: Bearer mtk_..."
+```
+
+---
+
+### GET /api/v1/analytics/events
+
+Retrieve bounded, paginated raw event records. This endpoint returns live tracked events only — imported Plausible aggregate history is excluded because those imports do not contain event identity.
+
+**Query parameters:**
+
+| Parameter | Required | Description |
+|---|---|---|
+| `websiteId` | No | Public website ID. If supplied, must match the token's website. |
+| `from` | No | Start date string. Defaults to 30 days ago. |
+| `to` | No | End date string. Defaults to today. |
+| `limit` | No | Integer 1–1000. Defaults to `100`. |
+| `cursor` | No | Zero-based event offset from `meta.pagination.nextCursor` for pagination. |
+| `type` | No | Filter to one of `pageview`, `event`, `goal`, or `revenue`. |
+| `referrer` | No | Filter by referrer domain. |
+| `country` | No | Filter by country code. |
+| `device` | No | Filter by device type. |
+
+**Response includes:** an array of event records (id, type, name, path, title, referrer, visitorId, sessionId, properties, timestamp) and a `meta.pagination` object with `limit`, `cursor`, `nextCursor`, and `total`.
+
+```bash
+curl "https://api.example.com/api/v1/analytics/events?websiteId=web_123&limit=100&type=pageview" \
+  -H "Authorization: Bearer mtk_..."
+```
+
+---
+
+### GET /api/v1/analytics/visitors
+
+Retrieve bounded, paginated visitor summaries, or look up a single visitor by exact ID. Like `/events`, this endpoint returns live tracked visitor records only.
+
+**Query parameters:**
+
+| Parameter | Required | Description |
+|---|---|---|
+| `websiteId` | No | Public website ID. If supplied, must match the token's website. |
+| `from` | No | Start date string. Defaults to 30 days ago. |
+| `to` | No | End date string. Defaults to today. |
+| `limit` | No | Integer 1–1000. Defaults to `100`. |
+| `cursor` | No | Zero-based visitor offset from `meta.pagination.nextCursor`. |
+| `visitorId` | No | Exact tracked visitor ID for single-record lookup. |
+| `referrer` | No | Filter by referrer domain. |
+| `country` | No | Filter by country code. |
+| `device` | No | Filter by device type. |
+
+**Response includes:** per-visitor fields such as `firstSeen`, `lastSeen`, `sessionCount`, `pageviewCount`, `eventCount`, `purchaseCount`, `totalRevenue`, `firstReferrer`, UTM attribution fields, `locations`, `devices`, `browsers`, and `lastPath`.
+
+```bash
+curl "https://api.example.com/api/v1/analytics/visitors?websiteId=web_123&visitorId=visitor_123" \
+  -H "Authorization: Bearer mtk_..."
+```
+
+---
+
+### GET /api/v1/analytics/export
+
+Download a website-scoped CSV export without dashboard session cookies. Use this to pull data into your own spreadsheets, data warehouse pipelines, or BI tools.
+
+**Query parameters:**
+
+| Parameter | Required | Description |
+|---|---|---|
+| `dataset` | **Yes** | One of `overview`, `pages`, `events`, `properties`, `referrers`, `locations`, `devices`, `revenue`, `journeys`, or `raw_events`. |
+| `websiteId` | No | Public website ID. If supplied, must match the token's website. |
+| `from` | No | Start date string. Defaults to 30 days ago. |
+| `to` | No | End date string. Defaults to today. |
+| `referrer` | No | Filter by referrer domain. |
+| `country` | No | Filter by country code. |
+| `device` | No | Filter by device type. |
+
+```bash
+curl "https://api.example.com/api/v1/analytics/export?websiteId=web_123&dataset=overview&from=2026-05-01&to=2026-05-09" \
+  -H "Authorization: Bearer mtk_..."
+```
+
+<Note>
+  The `raw_events` dataset is capped at the first 1,000 matching live tracked events in descending timestamp order. Use `/api/v1/analytics/events` with pagination when you need more than 1,000 records in JSON format.
+</Note>
+
+---
+
+## Public Report Links and Embeds
+
+Share a read-only view of your analytics without exposing your API token or creating dashboard accounts for every stakeholder.
+
+<Steps>
+  <Step title="Open your website settings">
+    Navigate to your website in the MetricPanel dashboard, then open the **API & Security** tab.
+  </Step>
+  <Step title="Generate a public report link">
+    Click **Create Public Report**. MetricPanel creates a website API token with the `analytics` scope and returns both a shareable link and an iframe snippet.
+  </Step>
+  <Step title="Share or embed the link">
+    Use the report link directly, or paste the iframe snippet into any HTML page:
+
+    ```html
+    <iframe
+      src="https://dashboard.example.com/reports/{publicWebsiteId}?embed=1#token=mtk_..."
+      width="100%"
+      height="600"
+      frameborder="0"
+    ></iframe>
+    ```
+
+    The URL format for the standalone report is:
+
+    ```
+    https://dashboard.example.com/reports/{publicWebsiteId}#token=mtk_...
+    ```
+  </Step>
+  <Step title="Revoke access when needed">
+    Delete the generated report token from the **API & Security** tab. The report link and iframe immediately stop working.
+  </Step>
+</Steps>
+
+<Note>
+  The token is placed in the URL **fragment** (`#token=...`), so it is never sent in the initial HTTP request to the dashboard. The client-side report page reads the fragment and calls a same-origin route that proxies token-scoped analytics reads to the API runtime. If the API runtime is unavailable, the report returns a structured `502` error.
+</Note>
+
+<Warning>
+  Public report links are for read-only analytics sharing only. They are not a partner-account system, a visitor-facing affiliate dashboard, or a migration automation surface.
+</Warning>
+
+---
+
+## Revenue Provider Webhooks
+
+MetricPanel receives webhooks from the following revenue providers. These routes are owned by the API runtime — in a split dashboard/API deployment, point your provider's webhook URL at your API runtime host.
+
+| Route | Method | Expected auth header |
+|---|---|---|
+| `/api/webhooks/stripe` | `POST` | `stripe-signature` |
+| `/api/webhooks/polar` | `POST` | `webhook-signature` |
+| `/api/webhooks/lemonsqueezy` | `POST` | `x-signature` |
+| `/api/webhooks/shopify` | `POST` | `x-shopify-hmac-sha256` |
+
+For setup guides for each provider, see the [Integrations](/integrations) section.
+
+---
+
+## API Strategy and Current Scope
+
+MetricPanel's public API surface is intentionally stable and narrow. The following paths are committed public contracts you can build production integrations on:
+
+<CardGroup cols={2}>
+  <Card title="Stable public paths" icon="check-circle">
+    - `POST /api/events` — browser, SDK, and server-side event ingestion
+    - `POST /api/v1/revenue/events` — token-scoped server-side revenue ingestion
+    - `GET /api/v1/analytics/stats` — aggregate summary
+    - `GET /api/v1/analytics/agent-summary` — compact agent/CLI context
+    - `GET /api/v1/analytics/top` — ranked top-list breakdowns
+    - `GET /api/v1/analytics/events` — paginated raw event records
+    - `GET /api/v1/analytics/visitors` — paginated visitor summaries
+    - `GET /api/v1/analytics/export` — CSV dataset exports
+  </Card>
+  <Card title="Not yet available" icon="x-circle">
+    - A full Plausible-style public stats/export API
+    - Token-based access to session-backed dashboard routes (`/api/analytics/*`)
+    - Dashboard management APIs (goals, funnels, websites) for third-party callers
+    - A hosted MCP server or AI-written narrative workflow
+  </Card>
+</CardGroup>
+
+<Warning>
+  Do not build customer-facing integrations on the session-backed analytics routes (`/api/analytics/*`). Those routes require Better Auth session cookies and may change with the dashboard. For external server-side reporting, use the versioned `/api/v1/analytics/*` routes documented above.
+</Warning>

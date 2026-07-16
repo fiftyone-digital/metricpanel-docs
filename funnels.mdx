@@ -1,0 +1,77 @@
+---
+title: "Visualize Drop-Off with Funnels in MetricPanel"
+sidebarTitle: "Funnels"
+description: "Map an ordered customer journey across URLs, events, and goals to find exactly where visitors drop off before completing a conversion."
+---
+
+Funnels show you how many visitors progress through an ordered journey and — more importantly — where they stop. Each step in a funnel can match a URL, a custom event, or an existing goal definition, so you can model the real path your customers take from first interest to completed action. The output of a funnel is not a verdict on why visitors dropped off; it is a precise pointer to where you should investigate next.
+
+## Plan the journey first
+
+Before you open the funnel builder, write down the shortest sequence of steps that actually answers your question. Resist adding intermediate interactions that feel meaningful but do not represent a real decision point.
+
+Here is a well-scoped example:
+
+1. **Pricing viewed** — URL `/pricing`
+2. **Checkout started** — event `checkout_started`
+3. **Purchase completed** — goal `Purchase completed`
+
+Three steps. Each step represents a meaningful stage gate. Adding a step for "clicked the pricing CTA" between steps 1 and 2 might seem useful, but it makes the funnel harder to read without improving your ability to act on the data.
+
+<Tip>
+  Aim for two to five steps per funnel. If you need more than ten steps, split the journey into two funnels — one for acquisition and one for activation, for example.
+</Tip>
+
+## Create a funnel
+
+<Steps>
+  <Step title="Open the funnel builder">
+    Open the website in MetricPanel, choose **Goals**, then scroll to the **Funnels** section and select **Create Funnel**.
+  </Step>
+  <Step title="Name the journey">
+    Give the funnel a name that describes the business question, such as "Pricing to purchase" or "Trial to paid conversion". Add an optional description for teammates.
+  </Step>
+  <Step title="Add steps">
+    Add between two and ten ordered steps. For each step:
+    - Choose **URL** and provide a URL pattern
+    - Choose **Event** and provide an exact event key
+    - Choose **Goal** and select an existing goal definition
+  </Step>
+  <Step title="Order the steps">
+    Reorder the steps to match the real customer journey. MetricPanel evaluates completion in the order you define, so step sequence matters.
+  </Step>
+  <Step title="Save and review">
+    Save the funnel. MetricPanel immediately applies it to historical data within your current reporting window.
+  </Step>
+</Steps>
+
+<Note>
+  URL steps accept a URL pattern with `*` wildcards. Event steps require an **exact** event key. Goal steps reference an existing goal definition — make sure the goal is active before depending on it in a funnel.
+</Note>
+
+## Read the result
+
+For each step, compare the number of visitors who reached it with the number who reached the previous step. The percentage shown is the step-level conversion rate.
+
+<CardGroup cols={2}>
+  <Card title="Large drop between steps" icon="arrow-trend-down">
+    A big fall-off identifies where to investigate, but it does not prove why visitors stopped. Pair the funnel with source, device, page, and event context before making product changes.
+  </Card>
+  <Card title="Consistent date ranges" icon="calendar">
+    Use the same reporting date range when comparing funnel snapshots over time. A visitor must have enough time inside that range to complete the entire journey.
+  </Card>
+</CardGroup>
+
+## Make funnels reliable
+
+Funnel data is only as trustworthy as the underlying instrumentation. Follow these practices to keep your funnels accurate:
+
+- Use **one business meaning per event name** — never reuse `button_clicked` across unrelated actions.
+- Keep **success routes inaccessible** until the action is genuinely complete, so pageview-based steps cannot fire prematurely.
+- Prefer **explicit events** for actions that happen without a page navigation, such as modal submissions or in-page upgrades.
+- Keep **goal definitions active and stable** while a funnel depends on them — pausing or deleting a goal removes it from funnel matching going forward.
+- Test the **happy path** in a new browser session after changing instrumentation so you confirm end-to-end tracking before relying on new data.
+
+<Warning>
+  If a funnel step shows zero visitors, verify the underlying event or goal before drawing conclusions. Check your event stream in [Events](/events) and confirm the goal is active in [Goals](/goals).
+</Warning>
