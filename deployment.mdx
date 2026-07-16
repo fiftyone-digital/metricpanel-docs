@@ -1,7 +1,7 @@
 ---
 title: "Deploying MetricPanel to Production Infrastructure"
 sidebarTitle: "Deployment"
-description: "Configure environment variables, set startup order, validate health checks, and follow the release gate before routing live traffic to your MetricPanel deployment."
+description: "Configure environment variables, set startup order, validate health checks, and follow the release gate before routing live traffic to MetricPanel."
 ---
 
 MetricPanel v1 is a split runtime made up of four app processes and three backing services. Each process has its own build artifact, its own environment variables, and its own deployment target. Getting the startup order and environment right is what separates a healthy launch from a silent failure.

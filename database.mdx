@@ -1,7 +1,7 @@
 ---
 title: "Database and Data Layer Architecture for MetricPanel"
 sidebarTitle: "Database"
-description: "Understand how Neon Postgres, Tinybird, and Redis divide responsibility in MetricPanel and configure each store correctly for local and production environments."
+description: "Understand how Neon Postgres, Tinybird, and Redis divide responsibility in MetricPanel, and configure each store for local and production environments."
 ---
 
 MetricPanel v1 uses three purpose-built data stores rather than a single general-purpose database. Each store handles a distinct job, and keeping them separate is what allows the system to handle high-volume event ingestion without sacrificing transactional correctness for product and auth state.

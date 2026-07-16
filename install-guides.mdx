@@ -20,7 +20,7 @@ Every install needs two things on the `<script>` tag: your **website ID** and th
 ```
 
 <Note>
-  Keep `data-api-url` when your script host and API runtime are separate deployments. Remove it only when `/script.js` and `/api/events` are served from the same origin—for example, when both run on the same Vercel project.
+  Keep `data-api-url` when your script host and API runtime are separate deployments. Remove it only when `/script.js` and `/api/events` are served from the same origin.
 </Note>
 
 ## Framework Guides
@@ -140,7 +140,7 @@ Every install needs two things on the `<script>` tag: your **website ID** and th
     ```
 
     <Warning>
-      Revenue attribution must come from MetricPanel revenue events or provider webhooks—not from pageviews alone. Do not infer paid orders from checkout page visits.
+      Revenue attribution must come from MetricPanel revenue events or provider webhooks—not from pageviews alone. Checkout page visits are not a reliable signal for paid orders.
     </Warning>
   </Tab>
 

@@ -1,5 +1,5 @@
 ---
-title: "MetricPanel API Reference: Public Endpoints Guide"
+title: "MetricPanel API Reference: Complete Endpoints Guide"
 sidebarTitle: "API Reference"
 description: "Authenticate, ingest events and revenue, query analytics, share reports, and connect revenue providers using MetricPanel's stable public API surface."
 ---
@@ -446,7 +446,7 @@ Share a read-only view of your analytics without exposing your API token or crea
 
     The URL format for the standalone report is:
 
-    ```
+    ```text
     https://dashboard.example.com/reports/{publicWebsiteId}#token=mtk_...
     ```
   </Step>
@@ -497,12 +497,12 @@ MetricPanel's public API surface is intentionally stable and narrow. The followi
   </Card>
   <Card title="Not yet available" icon="x-circle">
     - A full Plausible-style public stats/export API
-    - Token-based access to session-backed dashboard routes (`/api/analytics/*`)
+    - Token-based access to session-backed dashboard analytics routes
     - Dashboard management APIs (goals, funnels, websites) for third-party callers
     - A hosted MCP server or AI-written narrative workflow
   </Card>
 </CardGroup>
 
 <Warning>
-  Do not build customer-facing integrations on the session-backed analytics routes (`/api/analytics/*`). Those routes require Better Auth session cookies and may change with the dashboard. For external server-side reporting, use the versioned `/api/v1/analytics/*` routes documented above.
+  Do not build customer-facing integrations on internal dashboard analytics routes. Those routes are not part of the public API contract and may change without notice. For external server-side reporting, use the versioned `/api/v1/analytics/*` routes documented above.
 </Warning>

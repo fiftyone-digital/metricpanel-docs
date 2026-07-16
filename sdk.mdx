@@ -1,5 +1,5 @@
 ---
-title: "MetricPanel JavaScript SDK Reference and Setup"
+title: "MetricPanel JavaScript SDK Reference and Setup Guide"
 sidebarTitle: "JavaScript SDK"
 description: "Install @metricpanel/sdk, configure consent and cookieless modes, track pageviews and events, and pass attribution data into your payment provider."
 ---
@@ -23,7 +23,7 @@ Use the [hosted tracking script](/tracking-script) when you want automatic pagev
   `@metricpanel/sdk` currently ships as a private workspace package inside the MetricPanel repository. It is **not yet published** to the public npm registry. For an external website, use the hosted tracking script until a versioned public package is announced.
 </Warning>
 
-For a self-hosted checkout or another app inside the Bun workspace, declare the dependency and install:
+For a self-hosted checkout or another app in the same monorepo, declare the dependency and install:
 
 ```json package.json
 {

@@ -1,5 +1,5 @@
 ---
-title: "HMAC Signatures for Secure API Event Ingestion"
+title: "HMAC Signatures for MetricPanel Event Ingestion API"
 sidebarTitle: "HMAC Signatures"
 description: "Sign your MetricPanel event ingestion requests with HMAC-SHA256 to verify payload integrity, prevent tampering, and protect your analytics pipeline."
 ---
@@ -334,13 +334,13 @@ Every signed request must include these three headers:
 
 The `X-Signature` header value must follow this exact format:
 
-```
+```text
 sha256=<hex_encoded_signature>
 ```
 
 **Example:**
 
-```
+```text
 sha256=3f8d0e9c4b2a1f7e6d5c4b3a2f1e0d9c8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f3
 ```
 

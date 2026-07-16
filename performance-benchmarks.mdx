@@ -1,7 +1,7 @@
 ---
 title: "Running Performance Benchmarks for MetricPanel"
 sidebarTitle: "Performance"
-description: "Measure tracker script size, ingest throughput, and dashboard responsiveness against isolated environments and record baselines before using results as release evidence."
+description: "Run tracker, ingest, and dashboard benchmarks in isolated environments and record baselines before using results as release evidence for MetricPanel."
 ---
 
 MetricPanel ships a benchmark command that measures the three performance surfaces that matter most for a healthy deployment: the size of the served tracker script, the throughput and latency of the event-ingest pipeline, and the responsiveness of dashboard routes. All network-dependent checks are opt-in—by default the command reads only the built tracker from disk and skips ingest and dashboard tests unless you provide explicit target URLs.

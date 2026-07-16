@@ -1,5 +1,5 @@
 ---
-title: "Switching to MetricPanel: Migration Guide and Parity Checklist"
+title: "Switching to MetricPanel: Migration and Parity Guide"
 sidebarTitle: "Switching"
 description: "Map Plausible and DataFast tracking to MetricPanel, review open product gaps, and follow the parallel-run switching plan before full cutover."
 ---
@@ -49,11 +49,11 @@ MetricPanel is not yet a one-for-one DataFast tracker replacement. Use this tabl
 Review this list before committing to a full cutover. These are the parity gaps that remain open today:
 
 <Accordion title="Search Console and SEO Reporting">
-  MetricPanel does not connect to Google Search Console today. Do not promise keyword imports, query drilldowns, Search Console OAuth, or organic-search opportunity reports in the current product. If Search Console is part of your migration plan, keep your existing Search Console workflow active until a dedicated integration ships.
+  MetricPanel does not connect to Google Search Console today. Keyword imports, query drilldowns, Search Console OAuth, and organic-search opportunity reports are not available in the current product. If Search Console is part of your migration plan, keep your existing Search Console workflow active until a dedicated integration ships.
 </Accordion>
 
 <Accordion title="Scheduled Reporting and Digest Delivery">
-  MetricPanel does not ship scheduled digest delivery today. The dashboard has a manual Insight Summary and CSV export, and the alerting system can notify operators about configured website alerts. It is not a weekly analytics report, Slack digest, KPI email, AI-written narrative, or spike/drop investigation workflow.
+  MetricPanel does not ship scheduled digest delivery today. The dashboard provides a manual Insight Summary and CSV export, and the alerting system sends notifications when a configured website metric crosses a threshold. Automated weekly reports, Slack digests, KPI emails, AI-written narratives, and spike/drop investigation workflows are not yet available.
 </Accordion>
 
 <Accordion title="Visitor-Facing Partner Dashboards">
@@ -73,11 +73,11 @@ Review this list before committing to a full cutover. These are the parity gaps 
 </Accordion>
 
 <Accordion title="Visitor Prediction and Lead Scoring">
-  MetricPanel exposes observed analytics, live visitor journeys, goals, funnels, revenue attribution, and alerts. It does not infer who is likely to buy or assign automated scores to visitors. Do not describe the current AI or journey surfaces as predictive scoring.
+  MetricPanel exposes observed analytics, live visitor journeys, goals, funnels, revenue attribution, and alerts. It does not infer purchase likelihood or assign automated scores to visitors. Visitor prediction, lead scoring, and propensity scoring are not available in the current product.
 </Accordion>
 
 <Accordion title="Migration APIs and Broader Export Schema">
-  MetricPanel has token-scoped `/api/v1/analytics/stats`, `/api/v1/analytics/agent-summary`, `/api/v1/analytics/top`, `/api/v1/analytics/events`, `/api/v1/analytics/visitors`, and `/api/v1/analytics/export` read endpoints. Broader migration response-schema design for dashboard and reporting migration tooling is still in progress.
+  MetricPanel provides token-scoped `/api/v1/analytics/stats`, `/api/v1/analytics/agent-summary`, `/api/v1/analytics/top`, `/api/v1/analytics/events`, `/api/v1/analytics/visitors`, and `/api/v1/analytics/export` read endpoints. A broader migration response schema covering dashboard and reporting tooling is not yet available.
 </Accordion>
 
 ## Sharing and Reporting Boundary
@@ -96,7 +96,7 @@ MetricPanel also does not ship affiliate or referral-program management. Current
 
 ## Google Search Console Boundary
 
-MetricPanel does not connect to Google Search Console today. Do not promise keyword imports, query drilldowns, Search Console OAuth, or organic-search opportunity reports.
+MetricPanel does not connect to Google Search Console today. Keyword imports, query drilldowns, Search Console OAuth, and organic-search opportunity reports are not available in the current product.
 
 If Search Console is part of your migration plan, keep your existing Search Console workflow active and use MetricPanel for traffic, goal, funnel, alert, privacy, and revenue-event workflows until a dedicated integration is built.
 
